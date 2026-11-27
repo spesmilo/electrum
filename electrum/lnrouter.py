@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import json
 import queue
 from collections import defaultdict
 from typing import Sequence, Tuple, Optional, Dict, TYPE_CHECKING, Set, Callable, NamedTuple
@@ -41,9 +42,67 @@ from .channel_db import ChannelDB, Policy, NodeInfo
 if TYPE_CHECKING:
     from .lnchannel import Channel
 
-DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
+# How much base fee we apply for unknown sending capability of a channel. As this is applied to every channel
+# of a path (except our own), it is also the cost of an extra hop, and makes shorter paths preferred, as every
+# channel is a chance to fail. It is 0.1% of the amount (like the attempt cost of LND), but not less than
+# DEFAULT_PENALTY_BASE_MSAT and not more than MAX_PENALTY_BASE_MSAT: relative to the amount, it stays small
+# compared to the fees and the fee budget of small payments.
+DEFAULT_PENALTY_BASE_MSAT = 500
+MAX_PENALTY_BASE_MSAT = 5000
+PENALTY_BASE_MILLIONTHS = 1000
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
 HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
+# After that, we no longer rely on it, but we remember for much longer that a channel could not forward an
+# amount: channels are often depleted in one direction for days. It might have got liquidity since then, so
+# it is not excluded, but it gets a penalty, to be tried after the channels we know nothing bad about.
+# The penalty fades out until the failure is forgotten.
+FAILURE_MEMORY_DURATION = 7 * 24 * 3600
+OLD_FAILURE_PENALTY_FACTOR = 10
+MAX_HINT_AMOUNT_MSAT = 21_000_000 * 10**11  # no amount can be more than all the bitcoins
+# a parallel channel of a node pair that failed to forward an amount gets this many times the default penalty
+PAIR_FAILURE_PENALTY_FACTOR = 10
+# outdated policies kept per node pair, see LiquidityHintMgr.update_outdated_policy
+MAX_OUTDATED_POLICIES_PER_PAIR = 5
+# When this many different nodes failed to forward an amount to the same node, its inbound liquidity is
+# probably drained (e.g. it receives a lot of payments), and its other incoming channels get this many
+# times the default penalty. For a node that every path goes through, such as the destination, this
+# does not change which path is preferred, as every path gets it once: the price does, see below.
+NODE_FAILURE_MIN_SENDERS = 2
+NODE_FAILURE_PENALTY_FACTOR = 10
+# Where liquidity is scarce it is expensive: the channels into such a node that still have some tend to
+# be the ones that charge more. So the incoming channels of that node are not tried from the cheapest one
+# up, one by one, but from about this many times the highest fee among those that failed: a channel that
+# charges less than that gets a penalty of twice the difference, the more the cheaper it is. The cheap
+# ones are not excluded: they are tried after the ones around that price, and the others close to it.
+NODE_FAILURE_PRICE_STEP = 2
+_NO_NODE_FAILURES = (0, {})  # read only
+_NO_POLICIES = {}  # read only
+# When this many different nodes cannot forward to a node with unknown_next_peer, the node is likely
+# offline: its channels stay in the graph until the disabled channel_updates of its peers reach us.
+# For OFFLINE_NODE_DURATION, a path through it gets OFFLINE_NODE_PENALTY_MSAT, so that other paths are
+# tried first. It is not excluded (nor penalized when looking for the lowest fees), as unknown_next_peer
+# is also the error for a channel that was closed, while the node may be online.
+OFFLINE_NODE_MIN_REPORTERS = 3
+OFFLINE_NODE_DURATION = 600  # seconds
+OFFLINE_NODE_PENALTY_MSAT = 10**12
+
+
+def penalty_base_msat(amount_msat: int) -> int:
+    return min(max(amount_msat * PENALTY_BASE_MILLIONTHS // 1_000_000, DEFAULT_PENALTY_BASE_MSAT), MAX_PENALTY_BASE_MSAT)
+
+
+# fee_base_msat, fee_proportional_millionths, cltv_delta of a channel direction
+EdgePolicy = Tuple[int, int, int]
+
+
+def is_policy_not_more_expensive(policy: EdgePolicy, than: EdgePolicy, *, amount_msat: int) -> bool:
+    """Whether a channel with policy would satisfy an htlc of amount_msat built for a channel with policy than:
+    its fee at that amount and its cltv delta are not higher. A node may forward such an htlc over it."""
+    fee_base_msat, fee_proportional_millionths, cltv_delta = policy
+    than_fee_base_msat, than_fee_proportional_millionths, than_cltv_delta = than
+    return (cltv_delta <= than_cltv_delta
+            and fee_for_edge_msat(amount_msat, fee_base_msat, fee_proportional_millionths)
+            <= fee_for_edge_msat(amount_msat, than_fee_base_msat, than_fee_proportional_millionths))
 
 
 class NoChannelPolicy(Exception):
@@ -182,6 +241,18 @@ class LiquidAmount(NamedTuple):
     def is_invalid(self) -> bool:
         return now() - self.timestamp > HINT_DURATION
 
+    def is_forgotten(self) -> bool:
+        """for an amount that could not be sent: whether that is too long ago to matter"""
+        return now() - self.timestamp > FAILURE_MEMORY_DURATION
+
+    def old_failure_weight(self) -> float:
+        """for an amount that could not be sent, and a hint that is no longer valid:
+        how much of the penalty for an old failure applies. from 1, right after the hint expired, down to 0."""
+        age = now() - self.timestamp
+        if age >= FAILURE_MEMORY_DURATION:
+            return 0
+        return min(1, (FAILURE_MEMORY_DURATION - age) / (FAILURE_MEMORY_DURATION - HINT_DURATION))
+
 
 class LiquidityHint:
     """Encodes the amounts that can and cannot be sent over the direction of a
@@ -196,8 +267,31 @@ class LiquidityHint:
         self._cannot_send_forward = None  # type: Optional[LiquidAmount]
         self._can_send_backward = None  # type: Optional[LiquidAmount]
         self._cannot_send_backward = None  # type: Optional[LiquidAmount]
+        # A newer failure, of a larger amount, replaces an expired one in the fields above. So as not to
+        # lose that a smaller amount failed too, the expired one is kept here, until it is forgotten.
+        self._old_cannot_send_forward = None  # type: Optional[LiquidAmount]
+        self._old_cannot_send_backward = None  # type: Optional[LiquidAmount]
         self._inflight_htlcs_forward = 0
         self._inflight_htlcs_backward = 0
+
+    @staticmethod
+    def _contradicts_failure(can_send_amount_msat: int, failed: LiquidAmount) -> bool:
+        """whether a failure is to be dropped, now that we recorded that this amount can be sent"""
+        if can_send_amount_msat > failed.amount_msat:
+            return True
+        # an old failure, that is only remembered, is over also when just the amount that failed can be sent
+        return can_send_amount_msat == failed.amount_msat and failed.is_invalid()
+
+    @staticmethod
+    def _older_failure_to_keep(
+            replaced: Optional[LiquidAmount], older: Optional[LiquidAmount], *, new_amount_msat: int,
+    ) -> Optional[LiquidAmount]:
+        """A failure of new_amount_msat replaces the failure replaced, older being the one kept besides it
+        so far. Returns the one to keep besides the new one: that of the smallest amount, if it tells more
+        than the new one."""
+        candidates = [failed for failed in (replaced, older)
+                      if failed is not None and failed.amount_msat < new_amount_msat and not failed.is_forgotten()]
+        return min(candidates, key=lambda failed: failed.amount_msat) if candidates else None
 
     @property
     def can_send_forward(self) -> Optional[int]:
@@ -213,8 +307,10 @@ class LiquidityHint:
             return
         self._can_send_forward = LiquidAmount.from_amount(amount_msat)
         # we make a sanity check that sendable amount is lower than not sendable amount
-        if self._cannot_send_forward and self._can_send_forward.amount_msat > self._cannot_send_forward.amount_msat:
+        if self._cannot_send_forward and self._contradicts_failure(amount_msat, self._cannot_send_forward):
             self._cannot_send_forward = None
+        if self._old_cannot_send_forward and self._contradicts_failure(amount_msat, self._old_cannot_send_forward):
+            self._old_cannot_send_forward = None
 
     @property
     def can_send_backward(self) -> Optional[int]:
@@ -227,8 +323,10 @@ class LiquidityHint:
         if known is not None and known > amount_msat:
             return
         self._can_send_backward = LiquidAmount.from_amount(amount_msat)
-        if self._cannot_send_backward and self._can_send_backward.amount_msat > self._cannot_send_backward.amount_msat:
+        if self._cannot_send_backward and self._contradicts_failure(amount_msat, self._cannot_send_backward):
             self._cannot_send_backward = None
+        if self._old_cannot_send_backward and self._contradicts_failure(amount_msat, self._old_cannot_send_backward):
+            self._old_cannot_send_backward = None
 
     @property
     def cannot_send_forward(self) -> Optional[int]:
@@ -242,6 +340,8 @@ class LiquidityHint:
         known = self.cannot_send_forward
         if known is not None and known < amount_msat:
             return
+        self._old_cannot_send_forward = self._older_failure_to_keep(
+            self._cannot_send_forward, self._old_cannot_send_forward, new_amount_msat=amount_msat)
         self._cannot_send_forward = LiquidAmount.from_amount(amount_msat)
         if self._can_send_forward and self._can_send_forward.amount_msat > self._cannot_send_forward.amount_msat:
             self._can_send_forward = None
@@ -259,6 +359,8 @@ class LiquidityHint:
         known = self.cannot_send_backward
         if known is not None and known < amount_msat:
             return
+        self._old_cannot_send_backward = self._older_failure_to_keep(
+            self._cannot_send_backward, self._old_cannot_send_backward, new_amount_msat=amount_msat)
         self._cannot_send_backward = LiquidAmount.from_amount(amount_msat)
         if self._can_send_backward and self._can_send_backward.amount_msat > self._cannot_send_backward.amount_msat:
             self._can_send_backward = None
@@ -311,12 +413,16 @@ class LiquidityHint:
     def reset_amounts(self) -> None:
         self._cannot_send_backward = None
         self._cannot_send_forward = None
+        self._old_cannot_send_backward = None
+        self._old_cannot_send_forward = None
         self._can_send_forward = None
         self._can_send_backward = None
 
     def __repr__(self):
-        return f"forward: can send: {self._can_send_forward}, cannot send: {self._cannot_send_forward}, htlcs: {self._inflight_htlcs_forward}\n" \
-               f"backward: can send: {self._can_send_backward}, cannot send: {self._cannot_send_backward}, htlcs: {self._inflight_htlcs_backward}\n"
+        return f"forward: can send: {self._can_send_forward}, cannot send: {self._cannot_send_forward}, " \
+               f"old failure: {self._old_cannot_send_forward}, htlcs: {self._inflight_htlcs_forward}\n" \
+               f"backward: can send: {self._can_send_backward}, cannot send: {self._cannot_send_backward}, " \
+               f"old failure: {self._old_cannot_send_backward}, htlcs: {self._inflight_htlcs_backward}\n"
 
 
 class LiquidityHintMgr:
@@ -327,10 +433,36 @@ class LiquidityHintMgr:
     algorithm that favors channels which can route payments and penalizes
     channels that cannot.
     """
-    # TODO: hints based on node pairs only (shadow channels, non-strict forwarding)?
+    STATE_VERSION = 1  # of what export_state() returns
+    # the amounts of a LiquidityHint that are part of it, in this order, and whether each is a failure
+    _SAVED_AMOUNTS = (
+        ('_can_send_forward', False), ('_cannot_send_forward', True),
+        ('_can_send_backward', False), ('_cannot_send_backward', True),
+        ('_old_cannot_send_forward', True), ('_old_cannot_send_backward', True))
+
     def __init__(self):
         self.lock = RLock()
         self._liquidity_hints: Dict[ShortChannelID, LiquidityHint] = {}
+        # Nodes usually forward over any of their channels to the next node whose policy the htlc satisfies
+        # (non-strict forwarding), so when a node cannot forward an amount to the next one, the parallel
+        # channels between the two that are not more expensive than the failed one will likely not help either.
+        # (node_from, node_to) -> (smallest amount that failed, policy of the channel that failed)
+        self._pair_cannot_send: Dict[Tuple[bytes, bytes], Tuple[LiquidAmount, EdgePolicy]] = {}
+        # node_to -> (newest timestamp, {node_from: smallest amount that failed}). The values are replaced,
+        # not changed, as penalty() reads them without the lock.
+        self._node_cannot_receive: Dict[bytes, Tuple[int, Dict[bytes, LiquidAmount]]] = {}
+        # node_to -> {node_from: policy of its channel that failed, if we know it}. The values are replaced,
+        # not changed, as above.
+        self._node_failed_policies: Dict[bytes, Dict[bytes, EdgePolicy]] = {}
+        # Nodes often change the policies of all their channels to the same node together, so when a node
+        # rejected an htlc because the fee or cltv delta we used for a channel was outdated, its parallel
+        # channels to the same node that are not more expensive likely have outdated policies in our db too.
+        # (node_from, node_to) -> (when, the outdated policies)
+        self._pair_outdated_policy: Dict[Tuple[bytes, bytes], Tuple[LiquidAmount, Tuple[EdgePolicy, ...]]] = {}
+        # The largest amount a node pair forwarded, and a node received, since we started, see import_state().
+        # The values are replaced, not changed.
+        self._pair_forwarded: Dict[Tuple[bytes, bytes], LiquidAmount] = {}
+        self._node_received: Dict[bytes, LiquidAmount] = {}
 
     @with_lock
     def get_hint(self, channel_id: ShortChannelID) -> LiquidityHint:
@@ -341,14 +473,105 @@ class LiquidityHintMgr:
         return hint
 
     @with_lock
-    def update_can_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *, amount_msat: int) -> None:
+    def update_can_send(
+            self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *,
+            amount_msat: int, policy: Optional[EdgePolicy] = None,
+    ) -> None:
+        for records, key in ((self._pair_forwarded, (node_from, node_to)), (self._node_received, node_to)):
+            largest = records.get(key)
+            if largest is None or largest.amount_msat <= amount_msat:
+                records[key] = LiquidAmount.from_amount(amount_msat)
         hint = self.get_hint(channel_id)
         hint.update_can_send(node_from < node_to, amount_msat=amount_msat)
+        # a forward over a channel that is not more expensive than the one that failed
+        # shows that the node pair can send that amount (again)
+        pair_cannot_send = self._pair_cannot_send.get((node_from, node_to))
+        if pair_cannot_send is not None:
+            failed_amount, failed_policy = pair_cannot_send
+            if failed_amount.amount_msat <= amount_msat and (
+                    policy is None or is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat)):
+                del self._pair_cannot_send[(node_from, node_to)]
+        # a forward over a channel with a policy not more expensive than the outdated one shows it is current
+        pair_outdated = self._pair_outdated_policy.get((node_from, node_to))
+        if pair_outdated is not None and policy is not None and any(
+                is_policy_not_more_expensive(policy, outdated, amount_msat=amount_msat) for outdated in pair_outdated[1]):
+            del self._pair_outdated_policy[(node_from, node_to)]
+        # a forward to node_to shows it can receive that amount
+        _, node_failures = self._node_cannot_receive.get(node_to, (0, {}))
+        if node_failures:
+            self._set_node_failures(
+                node_to, {n: failed for n, failed in node_failures.items() if failed.amount_msat > amount_msat})
 
     @with_lock
-    def update_cannot_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *, amount_msat: int) -> None:
+    def update_cannot_send(
+            self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, *,
+            amount_msat: int, policy: Optional[EdgePolicy] = None,
+    ) -> None:
         hint = self.get_hint(channel_id)
         hint.update_cannot_send(node_from < node_to, amount_msat=amount_msat)
+        _, node_failures = self._node_cannot_receive.get(node_to, (0, {}))
+        failed = node_failures.get(node_from)
+        if failed is None or failed.is_invalid() or amount_msat <= failed.amount_msat:
+            node_failures = {**node_failures, node_from: LiquidAmount.from_amount(amount_msat)}
+        policies = dict(self._node_failed_policies.get(node_to, _NO_POLICIES))
+        known = policies.get(node_from)
+        if policy is None:
+            policies.pop(node_from, None)  # we cannot tell what this one charges
+        elif known is None or failed is None or failed.is_invalid() or (
+                fee_for_edge_msat(amount_msat, policy[0], policy[1]) > fee_for_edge_msat(amount_msat, known[0], known[1])):
+            policies[node_from] = policy  # the most expensive of its channels that failed
+        self._set_node_failures(node_to, node_failures, policies=policies)
+        if policy is None:
+            return
+        pair_cannot_send = self._pair_cannot_send.get((node_from, node_to))
+        if (pair_cannot_send is None or pair_cannot_send[0].is_invalid()
+                or amount_msat <= pair_cannot_send[0].amount_msat):
+            self._pair_cannot_send[(node_from, node_to)] = (LiquidAmount.from_amount(amount_msat), policy)
+
+    def update_from_route(
+            self, route: 'LNPaymentRoute', amount_msat: int, *, failing_channel: Optional[ShortChannelID] = None,
+    ) -> None:
+        """What the result of an htlc over route tells, see LNPathFinder.update_liquidity_hints()."""
+        for r in route:
+            policy = (r.fee_base_msat, r.fee_proportional_millionths, r.cltv_delta)
+            if r.short_channel_id != failing_channel:
+                self.update_can_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat, policy=policy)
+            else:
+                self.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat, policy=policy)
+                break
+        else:
+            assert failing_channel is None
+
+    @with_lock
+    def update_outdated_policy(self, node_from: bytes, node_to: bytes, *, policy: EdgePolicy) -> None:
+        """node_from rejected an htlc to node_to, as the policy we used for the channel is outdated."""
+        old = self._pair_outdated_policy.get((node_from, node_to))
+        policies = old[1] if old is not None and not old[0].is_invalid() else ()
+        policies = tuple(p for p in policies if p != policy)[-(MAX_OUTDATED_POLICIES_PER_PAIR - 1):] + (policy,)
+        # drop the expired ones
+        self._pair_outdated_policy = {
+            k: v for k, v in self._pair_outdated_policy.items() if not v[0].is_invalid()}
+        self._pair_outdated_policy[(node_from, node_to)] = (LiquidAmount.from_amount(0), policies)
+
+    def _set_node_failures(
+            self, node_to: bytes, node_failures: Dict[bytes, LiquidAmount], *,
+            policies: Optional[Dict[bytes, EdgePolicy]] = None,
+    ) -> None:
+        """policies: of the channels that failed, per node. Those we have are kept if it is not given."""
+        # expired failures are dropped here, so that penalty() does not go through them
+        node_failures = {n: failed for n, failed in node_failures.items() if not failed.is_invalid()}
+        if policies is None:
+            policies = self._node_failed_policies.get(node_to, _NO_POLICIES)
+        policies = {n: policy for n, policy in policies.items() if n in node_failures}
+        if node_failures:
+            newest_ts = max(failed.timestamp for failed in node_failures.values())
+            self._node_cannot_receive[node_to] = (newest_ts, node_failures)
+        else:
+            self._node_cannot_receive.pop(node_to, None)
+        if policies:
+            self._node_failed_policies[node_to] = policies
+        else:
+            self._node_failed_policies.pop(node_to, None)
 
     @with_lock
     def add_htlc(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
@@ -367,9 +590,10 @@ class LiquidityHintMgr:
         channel_id: ShortChannelID,
         *,
         amount_msat: int,
+        policy: Optional[EdgePolicy] = None,
     ) -> float:
         """Gives a penalty when sending from node1 to node2 over channel_id with an
-        amount in units of millisatoshi.
+        amount in units of millisatoshi. policy is that of the channel in that direction.
 
         The penalty depends on the can_send and cannot_send values that was
         possibly recorded in previous payment attempts.
@@ -383,7 +607,7 @@ class LiquidityHintMgr:
         from. There is a competition between low-fee channels and channels where
         we know with some certainty that they can support a payment. The penalty
         ultimately boils down to: how much more fees do we want to pay for
-        certainty of payment success? This can be tuned via DEFAULT_PENALTY_BASE_MSAT
+        certainty of payment success? This can be tuned via penalty_base_msat
         and DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH. A base _and_ relative penalty
         was chosen such that the penalty will be able to compete with the regular
         base and relative fees.
@@ -406,8 +630,52 @@ class LiquidityHintMgr:
         # above known liquidity interval: inf
         if cannot_send is not None and amount_msat >= cannot_send:
             return inf
+        # A parallel channel of a node pair that failed to forward the amount will likely fail too, but not
+        # with nodes that forward only over the requested channel (e.g. Electrum itself): so it is not
+        # excluded, but gets a large penalty, to be tried after other paths.
+        pair_failed = False
+        pair_cannot_send = self._pair_cannot_send.get((node_from, node_to))
+        if pair_cannot_send is not None and policy is not None:
+            failed_amount, failed_policy = pair_cannot_send
+            pair_failed = (amount_msat >= failed_amount.amount_msat and not failed_amount.is_invalid()
+                           and is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat))
+        pair_outdated = self._pair_outdated_policy.get((node_from, node_to))
+        if pair_outdated is not None and policy is not None and not pair_failed:
+            when, outdated_policies = pair_outdated
+            pair_failed = not when.is_invalid() and any(
+                is_policy_not_more_expensive(policy, outdated, amount_msat=amount_msat) for outdated in outdated_policies)
+        # A failure we no longer rely on: of the channel itself, or of the node pair.
+        old_failure_weight = 0
+        if hint is not None:
+            if node_from < node_to:
+                failed, older = hint._cannot_send_forward, hint._old_cannot_send_forward
+            else:
+                failed, older = hint._cannot_send_backward, hint._old_cannot_send_backward
+            if cannot_send is None and failed is not None and amount_msat >= failed.amount_msat:
+                old_failure_weight = failed.old_failure_weight()
+            if older is not None and amount_msat >= older.amount_msat:
+                old_failure_weight = max(old_failure_weight, older.old_failure_weight())
+        if pair_cannot_send is not None and policy is not None and not pair_failed and old_failure_weight < 1:
+            failed_amount, failed_policy = pair_cannot_send
+            if (amount_msat >= failed_amount.amount_msat and failed_amount.is_invalid()
+                    and is_policy_not_more_expensive(policy, failed_policy, amount_msat=amount_msat)):
+                old_failure_weight = max(old_failure_weight, failed_amount.old_failure_weight())
+        node_failed = False
+        highest_failed_fee_msat = 0  # among the channels of the nodes that failed to forward to node_to
+        newest_ts, node_failures = self._node_cannot_receive.get(node_to, _NO_NODE_FAILURES)
+        if len(node_failures) >= NODE_FAILURE_MIN_SENDERS and now() - newest_ts <= HINT_DURATION:
+            failed_policies = self._node_failed_policies.get(node_to, _NO_POLICIES)
+            num_failed = 0
+            for sender, failed in node_failures.items():
+                if amount_msat >= failed.amount_msat and not failed.is_invalid():
+                    num_failed += 1
+                    failed_policy = failed_policies.get(sender)
+                    if failed_policy is not None:
+                        highest_failed_fee_msat = max(
+                            highest_failed_fee_msat, fee_for_edge_msat(amount_msat, failed_policy[0], failed_policy[1]))
+            node_failed = num_failed >= NODE_FAILURE_MIN_SENDERS
         # below known liquidity interval: free
-        if can_send is not None and amount_msat <= can_send:
+        if can_send is not None and amount_msat <= can_send and not pair_failed:
             return 0
         # inside known liquidity interval, or liquidity unknown
         likely_cannotsend_factor = 0
@@ -416,8 +684,149 @@ class LiquidityHintMgr:
             # apply extra penalty if we are close to known interval upper bound
             if amount_msat >= fcan_send + 0.8 * (cannot_send - fcan_send):
                 likely_cannotsend_factor = 2
-        success_fee = fee_for_edge_msat(amount_msat, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        return success_fee * (1 + num_inflight_htlcs + likely_cannotsend_factor)
+        if pair_failed:
+            likely_cannotsend_factor += PAIR_FAILURE_PENALTY_FACTOR
+        if node_failed:
+            likely_cannotsend_factor += NODE_FAILURE_PENALTY_FACTOR
+        likely_cannotsend_factor += OLD_FAILURE_PENALTY_FACTOR * old_failure_weight
+        price_penalty_msat = 0
+        if node_failed and highest_failed_fee_msat and policy is not None:
+            # see NODE_FAILURE_PRICE_STEP
+            fee_msat = fee_for_edge_msat(amount_msat, policy[0], policy[1])
+            price_penalty_msat = 2 * max(0, NODE_FAILURE_PRICE_STEP * highest_failed_fee_msat - fee_msat)
+        success_fee = fee_for_edge_msat(amount_msat, penalty_base_msat(amount_msat), DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
+        return success_fee * (1 + num_inflight_htlcs + likely_cannotsend_factor) + price_penalty_msat
+
+    @with_lock
+    def export_state(self) -> dict:
+        """What we know about the liquidity of the channels, in a form that can be saved as json,
+        for import_state() of a later session. The htlcs in flight and the outdated policies
+        are not part of it: these are over, or fixed by the gossip, by then."""
+        def amount(la: Optional[LiquidAmount], *, is_failure: bool = False) -> Optional[list]:
+            if la is None or (la.is_forgotten() if is_failure else la.is_invalid()):
+                return None
+            return [la.amount_msat, la.timestamp]
+        # the failures of node pairs that are forgotten get dropped here
+        self._pair_cannot_send = {
+            pair: failed for pair, failed in self._pair_cannot_send.items() if not failed[0].is_forgotten()}
+        channels = {}
+        for scid, hint in self._liquidity_hints.items():
+            amounts = [amount(getattr(hint, name), is_failure=is_failure) for name, is_failure in self._SAVED_AMOUNTS]
+            if any(amounts):
+                channels[scid.hex()] = amounts
+        pairs = [
+            [node_from.hex(), node_to.hex(), failed.amount_msat, failed.timestamp, list(policy)]
+            for (node_from, node_to), (failed, policy) in self._pair_cannot_send.items()]
+        failures_of_nodes = {}
+        for node_to, (_, node_failures) in self._node_cannot_receive.items():
+            policies = self._node_failed_policies.get(node_to, _NO_POLICIES)
+            failures = {}
+            for n, failed in node_failures.items():
+                # (amount() looks at the clock: it is called once, as the failure may expire meanwhile)
+                if (failed_amount := amount(failed)) is not None:
+                    # with the policy of its channel that failed, if we know it
+                    failures[n.hex()] = failed_amount + ([list(policies[n])] if n in policies else [])
+            if failures:
+                failures_of_nodes[node_to.hex()] = failures
+        return {'version': self.STATE_VERSION, 'channels': channels, 'pairs': pairs, 'nodes': failures_of_nodes}
+
+    @with_lock
+    def import_state(self, state: dict) -> int:
+        """Takes over what export_state() of an earlier session returned, and returns for how many channels,
+        node pairs and nodes. What expired is left out. What we have takes precedence: what we learned, or took
+        over from the saved hints of another wallet. A failure of a node pair, or of a node to receive, that a
+        later forward of a larger amount since we started would have dropped is left out too.
+        Raises if state does not have the form of what export_state() returns, or has amounts or policies
+        out of range: nothing is taken over then."""
+        if state['version'] != self.STATE_VERSION:
+            raise ValueError(f"unknown version {state['version']!r}")
+        time_now = now()
+
+        def amount(value, *, is_failure: bool = False) -> Optional[LiquidAmount]:
+            if value is None:
+                return None
+            amount_msat, timestamp = value
+            if (type(amount_msat) is not int or type(timestamp) is not int
+                    or not 0 <= amount_msat <= MAX_HINT_AMOUNT_MSAT or timestamp < 0):
+                raise ValueError(f"not an amount: {value!r}")
+            if timestamp > time_now:
+                # Our clock was set back since then, so we cannot tell how old the hint is, and do not rely
+                # on it: a success is dropped, a failure is taken as one that has just expired.
+                if not is_failure:
+                    return None
+                timestamp = time_now - HINT_DURATION - 1
+            la = LiquidAmount(amount_msat=amount_msat, timestamp=timestamp)
+            return None if (la.is_forgotten() if is_failure else la.is_invalid()) else la
+
+        def node_id(value) -> bytes:
+            node = bytes.fromhex(value)
+            if len(node) != 33:
+                raise ValueError(f"not a node id: {value!r}")
+            return node
+
+        # validate all of it first
+        channels = {}
+        for scid_hex, amounts in state['channels'].items():
+            scid = bytes.fromhex(scid_hex)
+            if len(scid) != 8 or len(amounts) != len(self._SAVED_AMOUNTS):
+                raise ValueError(f"not the hints of a channel: {scid_hex!r}: {amounts!r}")
+            channels[ShortChannelID(scid)] = [
+                amount(value, is_failure=is_failure) for value, (_, is_failure) in zip(amounts, self._SAVED_AMOUNTS)]
+        def edge_policy(value) -> EdgePolicy:
+            policy = tuple(value)
+            if len(policy) != 3 or any(type(p) is not int or not 0 <= p < 2**32 for p in policy):
+                raise ValueError(f"not a policy: {policy!r}")
+            return policy
+
+        pairs = {}
+        for node_from, node_to, amount_msat, timestamp, policy in state['pairs']:
+            pairs[(node_id(node_from), node_id(node_to))] = (
+                amount([amount_msat, timestamp], is_failure=True), edge_policy(policy))
+        nodes, node_policies = {}, {}
+        for node_to, failures in state['nodes'].items():
+            node_to = node_id(node_to)
+            nodes[node_to], node_policies[node_to] = {}, {}
+            for n, failed in failures.items():
+                n = node_id(n)
+                if len(failed) not in (2, 3):  # the policy of the channel that failed is optional
+                    raise ValueError(f"not a failure of a node: {failed!r}")
+                nodes[node_to][n] = amount(failed[:2])
+                if len(failed) == 3:
+                    node_policies[node_to][n] = edge_policy(failed[2])
+
+        def has_amounts(hint: LiquidityHint) -> bool:
+            return any(getattr(hint, name) for name, _ in self._SAVED_AMOUNTS)
+
+        def is_over(failed: LiquidAmount, forwarded: Optional[LiquidAmount]) -> bool:
+            return (forwarded is not None and forwarded.amount_msat >= failed.amount_msat
+                    and forwarded.timestamp >= failed.timestamp)
+
+        num_imported = 0
+        for scid, amounts in channels.items():
+            hint = self._liquidity_hints.get(scid)
+            if (hint is not None and has_amounts(hint)) or not any(amounts):
+                continue  # we know better by now, or it all expired
+            hint = self.get_hint(scid)
+            for (name, _), la in zip(self._SAVED_AMOUNTS, amounts):
+                setattr(hint, name, la)
+            num_imported += 1
+        for pair, (failed, policy) in pairs.items():
+            if failed is not None and pair not in self._pair_cannot_send and not is_over(failed, self._pair_forwarded.get(pair)):
+                self._pair_cannot_send[pair] = (failed, policy)
+                num_imported += 1
+        for node_to, failures in nodes.items():
+            _, failures_we_have = self._node_cannot_receive.get(node_to, (0, {}))
+            received = self._node_received.get(node_to)
+            failures = {
+                n: failed for n, failed in failures.items()
+                if failed is not None and n not in failures_we_have and not is_over(failed, received)}
+            if failures:
+                policies = {n: p for n, p in node_policies[node_to].items() if n in failures}
+                self._set_node_failures(
+                    node_to, {**failures_we_have, **failures},
+                    policies={**self._node_failed_policies.get(node_to, _NO_POLICIES), **policies})
+                num_imported += 1
+        return num_imported
 
     @with_lock
     def reset_liquidity_hints(self):
@@ -425,12 +834,24 @@ class LiquidityHintMgr:
             v.reset_amounts()
             v._inflight_htlcs_forward = 0
             v._inflight_htlcs_backward = 0
+        self._pair_cannot_send = {}
+        self._node_cannot_receive = {}
+        self._node_failed_policies = {}
+        self._pair_outdated_policy = {}
+        self._pair_forwarded = {}
+        self._node_received = {}
 
     def __repr__(self):
         string = "liquidity hints:\n"
         if self._liquidity_hints:
             for k, v in self._liquidity_hints.items():
                 string += f"{k}: {v}\n"
+        for (node_from, node_to), (amount, policy) in self._pair_cannot_send.items():
+            string += f"{node_from.hex()[:10]} -> {node_to.hex()[:10]}: cannot send {amount}, {policy}\n"
+        for node_to, (_, failures) in self._node_cannot_receive.items():
+            string += f"-> {node_to.hex()[:10]}: cannot receive from {len(failures)} nodes\n"
+        for (node_from, node_to), (_, policies) in self._pair_outdated_policy.items():
+            string += f"{node_from.hex()[:10]} -> {node_to.hex()[:10]}: outdated policies {policies}\n"
         return string
 
 
@@ -441,7 +862,29 @@ class LNPathFinder(Logger):
         self.channel_db = channel_db
         self.liquidity_hints = LiquidityHintMgr()
         self._edge_blacklist = dict()  # type: Dict[ShortChannelID, int]  # scid -> expiration
+        # node -> {node that could not forward to it: expiration}. The values are replaced,
+        # not changed, as path finding reads them without the lock.
+        self._unknown_next_peer_reports = dict()  # type: Dict[bytes, Dict[bytes, int]]
         self._blacklist_lock = threading.Lock()
+
+    def import_saved_liquidity_hints(self, data: Optional[str]) -> None:
+        """Takes over liquidity hints that liquidity_hints_to_save() returned in an earlier session. Our wallets
+        keep them: on mobile, the OS kills us soon after the user leaves, and a payment made minutes later
+        would run into the same depleted channels again."""
+        if not data:
+            return
+        try:
+            num_imported = self.liquidity_hints.import_state(json.loads(data))
+        except Exception as e:
+            self.logger.warning(f"could not load the liquidity hints of earlier sessions: {e!r}")
+        else:
+            self.logger.info(f"loaded {num_imported} liquidity hints of earlier sessions")
+
+    def liquidity_hints_to_save(self) -> str:
+        return json.dumps(self.liquidity_hints.export_state(), separators=(',', ':'))
+
+    def reset_liquidity_hints(self) -> None:
+        self.liquidity_hints.reset_liquidity_hints()
 
     def _is_edge_blacklisted(self, short_channel_id: ShortChannelID, *, now: int) -> bool:
         blacklist_expiration = self._edge_blacklist.get(short_channel_id)
@@ -468,6 +911,35 @@ class LNPathFinder(Logger):
     def clear_blacklist(self):
         with self._blacklist_lock:
             self._edge_blacklist = dict()
+            self._unknown_next_peer_reports = dict()
+
+    def report_unknown_next_peer(self, reporter: bytes, node: bytes, *, now: int | None = None) -> None:
+        """reporter could not forward an htlc to node (unknown_next_peer): it is not connected to it,
+        or it does not know the channel."""
+        if now is None:
+            now = int(time.time())
+        with self._blacklist_lock:
+            reports = {r: exp for r, exp in self._unknown_next_peer_reports.get(node, {}).items() if exp >= now}
+            reports[reporter] = now + OFFLINE_NODE_DURATION
+            # drop the nodes whose reports all expired
+            self._unknown_next_peer_reports = {
+                n: r for n, r in self._unknown_next_peer_reports.items() if max(r.values()) >= now}
+            self._unknown_next_peer_reports[node] = reports
+        if len(reports) >= OFFLINE_NODE_MIN_REPORTERS:
+            self.logger.info(f"{node.hex()[:10]} is likely offline: {len(reports)} nodes could not forward to it")
+
+    def report_nodes_online(self, nodes: Sequence[bytes]) -> None:
+        """These nodes forwarded an htlc, or returned an error: they are online."""
+        with self._blacklist_lock:
+            reports = self._unknown_next_peer_reports
+            if any(node in reports for node in nodes):
+                self._unknown_next_peer_reports = {n: r for n, r in reports.items() if n not in nodes}
+
+    def _is_node_likely_offline(self, node: bytes, *, now: int) -> bool:
+        reports = self._unknown_next_peer_reports.get(node)
+        if not reports:
+            return False
+        return sum(1 for exp in reports.values() if exp >= now) >= OFFLINE_NODE_MIN_REPORTERS
 
     def update_liquidity_hints(
             self,
@@ -483,16 +955,20 @@ class LNPathFinder(Logger):
         note: actual routable amounts are slightly different than reported here
               as fees would need to be added.
         """
+        # the nodes that forwarded the htlc, or returned the error, are online
+        online = []
+        for r in route:
+            online.append(r.start_node)
+            if r.short_channel_id == failing_channel:
+                break
+        self.report_nodes_online(online)
         for r in route:
             if r.short_channel_id != failing_channel:
                 self.logger.info(f"report {r.short_channel_id} to be able to forward {amount_msat} msat")
-                self.liquidity_hints.update_can_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat)
             else:
                 self.logger.info(f"report {r.short_channel_id} to be unable to forward {amount_msat} msat")
-                self.liquidity_hints.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat=amount_msat)
                 break
-        else:
-            assert failing_channel is None
+        self.liquidity_hints.update_from_route(route, amount_msat, failing_channel=failing_channel)
 
     def update_num_inflight_htlcs(self, route: LNPaymentRoute, *, add_htlcs: bool) -> None:
         self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} inflight htlcs to graph (liquidity hints).")
@@ -515,9 +991,12 @@ class LNPathFinder(Logger):
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
             now: int,  # unix ts
+            penalty_weight: float = 1,
     ) -> Tuple[float, int]:
         """Heuristic cost (distance metric) of going through a channel.
         Returns (heuristic_cost, fee_for_edge_msat).
+        penalty_weight scales the costs other than the fee. With 0, the cost is the fee,
+        and the other costs only break ties.
         """
         if self._is_edge_blacklisted(short_channel_id, now=now):
             return float('inf'), 0
@@ -579,7 +1058,14 @@ class LNPathFinder(Logger):
         cltv_cost = route_edge.cltv_delta * payment_amt_msat * 15 / 1_000_000_000
         # the liquidty penalty takes care we favor edges that should be able to forward
         # the payment and penalize edges that cannot
-        liquidity_penalty = self.liquidity_hints.penalty(start_node, end_node, short_channel_id, amount_msat=payment_amt_msat)
+        liquidity_penalty = self.liquidity_hints.penalty(
+            start_node, end_node, short_channel_id, amount_msat=payment_amt_msat,
+            policy=(route_edge.fee_base_msat, route_edge.fee_proportional_millionths, route_edge.cltv_delta))
+        if penalty_weight != 1 and liquidity_penalty != inf:
+            # (with a weight of 1e-9, the other costs of a path stay below 1 msat for amounts
+            #  up to about 0.1 BTC; for larger ones, they may outweigh a difference in fees of a few msat)
+            other_costs = (cltv_cost + liquidity_penalty) * (penalty_weight or 1e-9)
+            return fee_msat + other_costs, fee_msat
         overall_cost = fee_msat + cltv_cost + liquidity_penalty
         return overall_cost, fee_msat
 
@@ -592,6 +1078,9 @@ class LNPathFinder(Logger):
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
             node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
@@ -617,7 +1106,7 @@ class LNPathFinder(Logger):
         while nodes_to_explore.qsize() > 0:
             dist_to_edge_endnode, amount_msat, edge_endnode = nodes_to_explore.get()
             if edge_endnode == nodeA and previous_hops:  # previous_hops check for circular paths
-                self.logger.info("found a path")
+                self.logger.info(f"found a path. cost={dist_to_edge_endnode:.0f} (fees and penalties, msat)")
                 break
             if dist_to_edge_endnode != distance_from_start[edge_endnode]:
                 # queue.PriorityQueue does not implement decrease_priority,
@@ -670,7 +1159,18 @@ class LNPathFinder(Logger):
                     my_channels=my_sending_channels,
                     private_route_edges=private_route_edges,
                     now=now,
+                    penalty_weight=penalty_weight,
                 )
+                if penalty_weight and self._is_node_likely_offline(edge_startnode, now=now):
+                    edge_cost += OFFLINE_NODE_PENALTY_MSAT
+                amount_to_forward_msat = amount_msat + fee_for_edge_msat
+                if max_fee_msat is not None and amount_to_forward_msat - invoice_amount_msat > max_fee_msat:
+                    # The path would exceed the fee budget: don't extend it, so that the node can be
+                    # reached over another path within the budget. Note: as we keep one path per node,
+                    # we can still miss one within the budget, unless the cost is the fee (penalty_weight=0).
+                    if search_info is not None:
+                        search_info['budget_pruned'] = True
+                    continue
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                     distance_from_start[edge_startnode] = alt_dist_to_neighbour
@@ -678,7 +1178,6 @@ class LNPathFinder(Logger):
                         start_node=edge_startnode,
                         end_node=edge_endnode,
                         short_channel_id=ShortChannelID(edge_channel_id))
-                    amount_to_forward_msat = amount_msat + fee_for_edge_msat
                     nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
             # for circular paths, we already explored the end node, but this
             # is also our start node, so set it to unexplored
@@ -695,9 +1194,17 @@ class LNPathFinder(Logger):
             invoice_amount_msat: Optional[int],
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
-            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None
+            node_filter: Optional[Callable[[bytes, Optional[NodeInfo]], bool]] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Optional[LNPaymentPath]:
-        """Return a path from nodeA to nodeB."""
+        """Return a path from nodeA to nodeB.
+        With max_fee_msat, paths whose fees (not counting the first channel) exceed it are not considered,
+        and search_info['budget_pruned'] is set if a path was left out because of it.
+        penalty_weight scales the costs other than the fees (liquidity penalties, cltv). With 0, return the
+        path with the lowest fees among channels that can be used, the other costs only breaking ties.
+        """
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int or invoice_amount_msat is None
@@ -710,7 +1217,10 @@ class LNPathFinder(Logger):
             invoice_amount_msat=invoice_amount_msat,
             my_sending_channels=my_sending_channels,
             private_route_edges=private_route_edges,
-            node_filter=node_filter)
+            node_filter=node_filter,
+            max_fee_msat=max_fee_msat,
+            penalty_weight=penalty_weight,
+            search_info=search_info)
 
         if nodeA not in previous_hops:
             return None  # no path found
@@ -795,6 +1305,9 @@ class LNPathFinder(Logger):
             path: Optional[Sequence[PathEdge]] = None,
             my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
+            max_fee_msat: Optional[int] = None,
+            penalty_weight: float = 1,
+            search_info: Optional[dict] = None,
     ) -> Optional[LNPaymentRoute]:
         route = None
         if not path:
@@ -803,7 +1316,10 @@ class LNPathFinder(Logger):
                 nodeB=nodeB,
                 invoice_amount_msat=invoice_amount_msat,
                 my_sending_channels=my_sending_channels,
-                private_route_edges=private_route_edges)
+                private_route_edges=private_route_edges,
+                max_fee_msat=max_fee_msat,
+                penalty_weight=penalty_weight,
+                search_info=search_info)
         if path:
             route = self.create_route_from_path(
                 path, my_channels=my_sending_channels, private_route_edges=private_route_edges)
