@@ -118,6 +118,7 @@ Pane {
                             FormattedAmount {
                                 visible: channeldetails.isOpen
                                 amount: channeldetails.localCapacity
+                                msatPrecision: true
                             }
 
                             Label {
@@ -136,6 +137,7 @@ Pane {
                                     visible: !channeldetails.frozenForSending
                                     amount: channeldetails.canSend
                                     singleLine: false
+                                    msatPrecision: true
                                 }
                                 Label {
                                     visible: channeldetails.frozenForSending
@@ -168,6 +170,7 @@ Pane {
                                     visible: !channeldetails.frozenForReceiving
                                     amount: channeldetails.canReceive
                                     singleLine: false
+                                    msatPrecision: true
                                 }
 
                                 Label {
