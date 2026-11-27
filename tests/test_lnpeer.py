@@ -1778,6 +1778,222 @@ class TestPeerDirect(TestPeer):
         with self.assertRaises(GracefulDisconnect):
             await gath
 
+    def _prepare_reconnect_in_shutdown_state(self):
+        """Both sides have sent shutdown, and then the connection was lost.
+        Returns the graph, and a dict that counts the 'shutdown' and 'closing_signed' messages each peer sends.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        num_sent = defaultdict(int)  # (peer, message_name) -> count
+        for peer in graph.peers.values():
+            def send_message(message_name, *, _peer=peer, _orig=peer.send_message, **kwargs):
+                num_sent[(_peer, message_name)] += 1
+                return _orig(message_name, **kwargs)
+            peer.send_message = send_message
+        for w in graph.workers.values():
+            w.network.config.TEST_SHUTDOWN_FEE = 1000
+        for chan in (graph.channels[('alice', 'bob')][0], graph.channels[('bob', 'alice')][0]):
+            chan.set_state(ChannelState.SHUTDOWN)
+            chan.peer_state = PeerState.DISCONNECTED
+        return graph, num_sent
+
+    async def test_redundant_shutdown_from_remote_is_ignored_if_we_started_the_close(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
+        w1.network.config.TEST_SHUTDOWN_FEE = w2.network.config.TEST_SHUTDOWN_FEE = 1000
+        orig_send_shutdown = p2.send_shutdown
+
+        async def send_shutdown_twice(chan):
+            await orig_send_shutdown(chan)
+            p2._shutdown_sent.discard(chan.channel_id)
+            await orig_send_shutdown(chan)
+        p2.send_shutdown = send_shutdown_twice
+        num_shutdown_received_by_alice = 0
+        orig_on_shutdown = p1.on_shutdown
+
+        on_shutdown_tasks = []
+
+        async def on_shutdown(chan, payload):
+            nonlocal num_shutdown_received_by_alice
+            num_shutdown_received_by_alice += 1
+            on_shutdown_tasks.append(await orig_on_shutdown(chan, payload))  # (the handler runs in a task of its own)
+        p1.on_shutdown = on_shutdown
+        num_negotiations_of_alice = 0
+        orig_shutdown = p1._shutdown
+
+        async def shutdown(*args, **kwargs):
+            nonlocal num_negotiations_of_alice
+            num_negotiations_of_alice += 1
+            return await orig_shutdown(*args, **kwargs)
+        p1._shutdown = shutdown
+
+        async def close():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            await util.wait_for2(p1.close_channel(alice_channel.channel_id), 5)
+            async with util.async_timeout(5):
+                while bob_channel.get_state() != ChannelState.CLOSING or num_shutdown_received_by_alice < 2:
+                    await asyncio.sleep(0.01)
+                await asyncio.gather(*on_shutdown_tasks)  # neither of the two has raised
+            raise SuccessfulTest()
+        gath = asyncio.gather(close(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
+            await util.wait_for2(gath, 20)
+        self.assertEqual(2, num_shutdown_received_by_alice)
+        self.assertEqual(1, num_negotiations_of_alice)
+        self.assertEqual(ChannelState.CLOSING, alice_channel._state)
+
+    async def test_two_channels_with_one_peer_can_both_be_closed(self):
+        # what we remember about 'shutdown' is per channel, not per connection
+        graph_def = copy.deepcopy(self.GRAPH_DEFINITIONS['single_chan'])
+        graph_def['alice']['channels']['bob'].append(copy.deepcopy(graph_def['alice']['channels']['bob'][0]))
+        graph = self.prepare_chans_and_peers_in_graph(graph_def)
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        chan1, chan2 = graph.channels[('alice', 'bob')]
+        self.assertNotEqual(chan1.channel_id, chan2.channel_id)
+        w1.network.config.TEST_SHUTDOWN_FEE = w2.network.config.TEST_SHUTDOWN_FEE = 1000
+
+        async def close():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            await util.wait_for2(p1.close_channel(chan1.channel_id), 5)
+            # the other channel is closed on the same connection, this time by bob
+            await util.wait_for2(p2.close_channel(chan2.channel_id), 5)
+            async with util.async_timeout(5):  # (alice is done a moment after bob)
+                while chan2.get_state() != ChannelState.CLOSING:
+                    await asyncio.sleep(0.01)
+            raise SuccessfulTest()
+        gath = asyncio.gather(close(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
+            await util.wait_for2(gath, 20)
+        self.assertEqual((ChannelState.CLOSING, ChannelState.CLOSING), (chan1._state, chan2._state))
+        self.assertEqual(2, w1.network.tx_queue.qsize())
+
+    async def test_redundant_shutdown_from_remote_is_ignored(self):
+        """Electrum <= 4.8.3 sends 'shutdown' twice after a reconnection in SHUTDOWN state.
+        We must not start the fee negotiation a second time when the second one arrives.
+        """
+        graph, num_sent = self._prepare_reconnect_in_shutdown_state()
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
+        # bob behaves like the old code: he sends shutdown every time send_shutdown is called
+        orig_send_shutdown = p2.send_shutdown
+
+        async def send_shutdown_like_old_electrum(chan):
+            p2._shutdown_sent.discard(chan.channel_id)
+            await orig_send_shutdown(chan)
+        p2.send_shutdown = send_shutdown_like_old_electrum
+        num_negotiations_of_alice = 0
+        orig_shutdown = p1._shutdown
+
+        async def shutdown(*args, **kwargs):
+            nonlocal num_negotiations_of_alice
+            num_negotiations_of_alice += 1
+            return await orig_shutdown(*args, **kwargs)
+        p1._shutdown = shutdown
+
+        async def reestablish():
+            await asyncio.gather(
+                p1.reestablish_channel(alice_channel),
+                p2.reestablish_channel(bob_channel))
+            async with util.async_timeout(5):
+                while not (alice_channel.get_state() == bob_channel.get_state() == ChannelState.CLOSING):
+                    await asyncio.sleep(0.01)
+            raise SuccessfulTest()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
+            await util.wait_for2(gath, 20)
+        self.assertEqual(2, num_sent[(p2, 'shutdown')])
+        self.assertEqual(1, num_sent[(p1, 'shutdown')])
+        self.assertEqual(1, num_negotiations_of_alice)
+        # both broadcast the same closing tx
+        self.assertEqual(w1.network.tx_queue.get_nowait().txid(), w2.network.tx_queue.get_nowait().txid())
+
+    async def test_close_channel_can_be_called_again_if_shutdown_could_not_be_sent(self):
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        w1.network.config.TEST_SHUTDOWN_FEE = w2.network.config.TEST_SHUTDOWN_FEE = 1000
+        orig_send_message = p1.send_message
+
+        def send_message_fails(message_name, **kwargs):
+            if message_name == 'shutdown':
+                raise Exception("tried to send message before we are initialized")
+            return orig_send_message(message_name, **kwargs)
+
+        async def close():
+            await util.wait_for2(p1.initialized, 1)
+            await util.wait_for2(p2.initialized, 1)
+            p1.send_message = send_message_fails
+            with self.assertRaisesRegex(Exception, "before we are initialized"):
+                await p1.close_channel(alice_channel.channel_id)
+            p1.send_message = orig_send_message
+            await util.wait_for2(p1.close_channel(alice_channel.channel_id), 5)
+            raise SuccessfulTest()
+        gath = asyncio.gather(close(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertLogs('electrum', level='ERROR'):
+            with self.assertRaises(SuccessfulTest):
+                await util.wait_for2(gath, 20)
+        self.assertEqual(ChannelState.CLOSING, alice_channel._state)
+
+    async def test_concurrent_send_shutdown_sends_only_one_message(self):
+        # after a reconnection, send_shutdown is called both by reestablish_channel and by on_shutdown.
+        # both calls might have to wait until the remote has acked our pending changes.
+        graph, num_sent = self._prepare_reconnect_in_shutdown_state()
+        p1 = graph.peers[('alice', 'bob')]
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        alice_channel.peer_state = PeerState.GOOD
+        p1.initialized.set_result(True)
+        pending = iter([True, True, True, True])
+        with mock.patch.object(alice_channel, 'has_pending_changes', side_effect=lambda *args: next(pending, False)):
+            await asyncio.gather(p1.send_shutdown(alice_channel), p1.send_shutdown(alice_channel))
+        self.assertEqual(1, num_sent[(p1, 'shutdown')])
+
+    async def test_shutdown_is_retransmitted_only_once_after_reestablish(self):
+        """If we reconnect while the channel is in SHUTDOWN state, both sides retransmit 'shutdown',
+        and the closing negotiation restarts. We MUST NOT send 'shutdown' a second time
+        when the 'shutdown' of the remote arrives: e.g. lnd disconnects if we do.
+        """
+        graph = self.prepare_chans_and_peers_in_graph(self.GRAPH_DEFINITIONS['single_chan'])
+        p1, p2 = graph.peers.values()
+        w1, w2 = graph.workers.values()
+        alice_channel = graph.channels[('alice', 'bob')][0]
+        bob_channel = graph.channels[('bob', 'alice')][0]
+        w1.network.config.TEST_SHUTDOWN_FEE = w2.network.config.TEST_SHUTDOWN_FEE = 1000
+        num_shutdown_sent = defaultdict(int)
+        for peer in (p1, p2):
+            def send_message(message_name, *, _peer=peer, _orig=peer.send_message, **kwargs):
+                if message_name == 'shutdown':
+                    num_shutdown_sent[_peer] += 1
+                return _orig(message_name, **kwargs)
+            peer.send_message = send_message
+        # shutdown was exchanged, and then the connection was lost:
+        for chan in (alice_channel, bob_channel):
+            chan.set_state(ChannelState.SHUTDOWN)
+            chan.peer_state = PeerState.DISCONNECTED
+
+        async def reestablish():
+            await asyncio.gather(
+                p1.reestablish_channel(alice_channel),
+                p2.reestablish_channel(bob_channel))
+            async with util.async_timeout(5):
+                while not (alice_channel.get_state() == bob_channel.get_state() == ChannelState.CLOSING):
+                    await asyncio.sleep(0.01)
+            raise SuccessfulTest()
+        gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        with self.assertRaises(SuccessfulTest):
+            await util.wait_for2(gath, 20)
+        self.assertEqual({p1: 1, p2: 1}, dict(num_shutdown_sent))
+        # the user asks again for a cooperative close, on the same connection
+        with self.assertRaisesRegex(Exception, "already in progress"):
+            await util.wait_for2(p1.close_channel(alice_channel.channel_id), 1)
+
     async def test_close_upfront_shutdown_script(self):
         alice_lnwallet, bob_lnwallet = self.prepare_lnwallets(self.GRAPH_DEFINITIONS['single_chan']).values()
         alice_channel, bob_channel = create_test_channels(alice_lnwallet=alice_lnwallet, bob_lnwallet=bob_lnwallet)
