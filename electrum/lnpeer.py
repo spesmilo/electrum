@@ -13,6 +13,7 @@ from datetime import datetime
 import functools
 from functools import partial
 import inspect
+import itertools
 
 import electrum_ecc as ecc
 from electrum_ecc import ecdsa_sig64_from_r_and_s, ecdsa_der_sig_from_ecdsa_sig64, ECPubkey
@@ -66,6 +67,10 @@ if TYPE_CHECKING:
 
 
 LN_P2P_NETWORK_TIMEOUT = 20
+
+# max number of closing_signed messages we accept from the remote in one negotiation.
+# (lnd changes its fee by 10% per round, so this is enough even if our fee estimates differ by orders of magnitude)
+COOP_CLOSE_MAX_ROUNDS = 100
 
 
 class CoopCloseFailure(Exception): pass
@@ -2746,12 +2751,9 @@ class Peer(Logger, EventListener):
                 self.schedule_force_closing(chan.channel_id)
                 raise CoopCloseFailure("closing_signed not received, force closing.")
             their_fee = cs_payload['fee_satoshis']
+            # note: fee_range is missing if the remote uses the legacy negotiation (e.g. lnd)
             their_fee_range = cs_payload['closing_signed_tlvs'].get('fee_range')
             their_sig = cs_payload['signature']
-            # legacy negotiation is no longer supported
-            if their_fee_range is None:
-                self.schedule_force_closing(chan.channel_id)
-                raise CoopCloseFailure(f"Their fee range missing, force closing.")
             # perform checks
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
@@ -2773,9 +2775,45 @@ class Peer(Logger, EventListener):
                 transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
             return their_fee, their_fee_range, their_sig, drop_remote
 
+        def choose_new_fee_legacy(our_fee, our_fee_range, their_fee, their_previous_fee) -> int:
+            """Legacy negotiation, used if the remote does not send a fee_range (e.g. lnd):
+            both sides make proposals, until one of them repeats the fee of the other.
+            We only ever sign for fees that are inside our own fee range.
+            (which has no upper limit if the remote is the one paying the fee)
+            """
+            if not is_initiator:
+                # we are not the one paying the fee, so we have no reason to have an upper bound
+                # (as below: SHOULD set max_fee_satoshis to at least the max_fee_satoshis received)
+                our_fee_range['max_fee_satoshis'] = max(their_fee, our_fee_range['max_fee_satoshis'])
+            min_fee = our_fee_range['min_fee_satoshis']
+            max_fee = our_fee_range['max_fee_satoshis']
+            # if fee_satoshis matches its previously sent fee_range:
+            if min_fee <= their_fee <= max_fee:
+                # SHOULD reply with a closing_signed with the same fee_satoshis value
+                return their_fee
+            # otherwise, if fee_satoshis is not strictly between its last-sent fee_satoshis
+            # and its previously-received fee_satoshis, UNLESS it has since reconnected:
+            if their_previous_fee is not None:  # (in which case we have already sent our_fee)
+                if not (min(our_fee, their_previous_fee) < their_fee < max(our_fee, their_previous_fee)):
+                    # SHOULD send a warning and close the connection, or send an error and fail the channel.
+                    self.schedule_force_closing(chan.channel_id)
+                    raise CoopCloseFailure(
+                        f"Their fee ({their_fee} sat) is not strictly between "
+                        f"our last fee ({our_fee} sat) and their previous fee ({their_previous_fee} sat).")
+            # otherwise: MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
+            # We meet them halfway, but do not leave our fee range.
+            # note: if we are already at the limit of our range, we repeat our last fee, which is not "strictly between".
+            #       We have nothing left to concede then, but the remote can still move towards us.
+            #       (lnd does so, in steps of 10%, and accepts our fee once it is within 30% of theirs)
+            return max(min_fee, min((our_fee + their_fee) // 2, max_fee))
+
         def choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee):
             assert our_fee != their_fee
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
+
+            if their_fee_range is None:
+                our_fee = choose_new_fee_legacy(our_fee, our_fee_range, their_fee, their_previous_fee)
+                return our_fee, our_fee_range
 
             # The sending node, if it is not the funder:
             if not is_initiator:
@@ -2826,15 +2864,20 @@ class Peer(Logger, EventListener):
         # Fee negotiation: both parties exchange 'closing_signed' messages.
         # The funder sends the first message, the non-funder sends the last message.
         # In the 'modern' case, at most 3 messages are exchanged, because choose_new_fee of the funder either returns their_fee or fails
+        # In the 'legacy' case (remote does not send a fee_range), there can be more rounds:
+        # the remote has to move by at least 1 sat in each of them, and we limit their number.
         their_fee = None
         drop_remote = False  # does the peer drop its to_local output or not?
         if is_initiator:
             send_closing_signed(our_fee, our_fee_range, drop_remote)
-        while True:
+        for num_round in itertools.count(1):
             their_previous_fee = their_fee
             their_fee, their_fee_range, their_sig, drop_remote = await receive_closing_signed()
             if our_fee == their_fee:
                 break
+            if num_round >= COOP_CLOSE_MAX_ROUNDS:
+                self.schedule_force_closing(chan.channel_id)
+                raise CoopCloseFailure(f"No agreement on the fee after {num_round} rounds.")
             our_fee, our_fee_range = choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee)
             if not is_initiator and our_fee == their_fee:
                 break
