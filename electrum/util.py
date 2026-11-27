@@ -495,29 +495,23 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     """
     if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
-    t0 = None  # type: Optional[float]
 
-    def timer_start():
-        nonlocal t0
+    @contextlib.contextmanager
+    def log_duration():
         t0 = time.perf_counter()
-
-    def timer_done():
+        yield
         t = time.perf_counter() - t0
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
 
     if inspect.iscoroutinefunction(func):
         async def do_profile(*args, **kw_args):
-            timer_start()
-            o = await func(*args, **kw_args)
-            timer_done()
-            return o
+            with log_duration():
+                return await func(*args, **kw_args)
     else:
         def do_profile(*args, **kw_args):
-            timer_start()
-            o = func(*args, **kw_args)
-            timer_done()
-            return o
+            with log_duration():
+                return func(*args, **kw_args)
     return do_profile
 
 
