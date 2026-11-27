@@ -489,7 +489,7 @@ _profiler_logger = _logger.getChild('profiler')
 
 
 def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
-    """Function decorator that logs execution time.
+    """Function decorator that logs execution time, also if the function raises.
 
     min_threshold: if set, only log if time taken is higher than threshold
     """
@@ -499,10 +499,16 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     @contextlib.contextmanager
     def log_duration():
         t0 = time.perf_counter()
-        yield
-        t = time.perf_counter() - t0
-        if min_threshold is None or t > min_threshold:
-            _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
+        raised = ""
+        try:
+            yield
+        except BaseException as e:
+            raised = f" (raised {type(e).__name__})"
+            raise
+        finally:
+            t = time.perf_counter() - t0
+            if min_threshold is None or t > min_threshold:
+                _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec{raised}")
 
     if inspect.iscoroutinefunction(func):
         async def do_profile(*args, **kw_args):
