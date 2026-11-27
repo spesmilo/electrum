@@ -491,6 +491,8 @@ class TestTxParents(WalletTestCase):
         a, b, c, d, external = [bitcoin.hash160_to_p2pkh(bytes([i]) * 20) for i in range(1, 6)]
         wallet = restore_wallet_from_text__for_unittest(f'{a} {b} {c} {d}', path=None, config=self.config)['wallet']
         wallet.db.put('stored_height', 1000)
+        # the txs are not signed
+        self.enterContext(mock.patch('electrum.address_synchronizer.verify_input'))
 
         def add_tx(prevouts, outputs, height=TX_HEIGHT_UNCONFIRMED, txpos=None) -> str:
             inputs = [PartialTxInput(prevout=TxOutpoint.from_str(prevout)) for prevout in prevouts]
