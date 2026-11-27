@@ -109,26 +109,6 @@ class TestLightningSwapserver(TestLightning):
 
 
 
-class TestLightningWatchtower(TestLightning):
-    agents = {
-        'alice': {
-        },
-        'bob': {
-            'lightning_listen': 'localhost:9735',
-            'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
-        },
-        'carol': {
-            'plugins.watchtower.enabled': 'true',
-            'plugins.watchtower.server_user': 'wtuser',
-            'plugins.watchtower.server_password': 'wtpassword',
-            'plugins.watchtower.server_port': '12345',
-        }
-    }
-
-    def test_watchtower(self):
-        self.run_shell(['watchtower'])
-
-
 class TestLightningABC(TestLightning):
     agents = {
         'alice': {

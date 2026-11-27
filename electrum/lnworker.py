@@ -19,12 +19,10 @@ from functools import partial
 from collections import defaultdict
 import concurrent
 from concurrent import futures
-import urllib.parse
 import itertools
 import dataclasses
 from math import ceil
 
-import aiohttp
 import dns.asyncresolver
 import dns.exception
 from aiorpcx import run_in_thread, NetAddress, ignore_after
@@ -37,9 +35,9 @@ from . import constants, util, lnutil
 from . import bitcoin
 from . import crandom
 from .util import (
-    profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, JsonRPCClient, NotEnoughFunds, EventListener,
+    profiler, OldTaskGroup, ESocksProxy, NetworkRetryManager, NotEnoughFunds, EventListener,
     event_listener, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions, ignore_exceptions,
-    make_aiohttp_session, random_shuffled_copy, is_private_netaddress,
+    random_shuffled_copy,
     UnrelatedTransactionException, LightningHistoryItem, get_asyncio_loop,
 )
 from .fee_policy import (
@@ -1204,46 +1202,6 @@ class LNWallet(Logger):
     def diagnostic_name(self):
         return self.wallet.diagnostic_name()
 
-    @ignore_exceptions
-    @log_exceptions
-    async def sync_with_remote_watchtower(self):
-        self.watchtower_ctns = {}
-        while True:
-            # periodically poll if the user updated 'watchtower_url'
-            await asyncio.sleep(5)
-            watchtower_url = self.config.WATCHTOWER_CLIENT_URL
-            if not watchtower_url:
-                continue
-            parsed_url = urllib.parse.urlparse(watchtower_url)
-            if not (parsed_url.scheme == 'https' or is_private_netaddress(parsed_url.hostname)):
-                self.logger.warning(f"got watchtower URL for remote tower but we won't use it! "
-                                    f"can only use HTTPS (except if private IP): not using {watchtower_url!r}")
-                continue
-            # try to sync with the remote watchtower
-            try:
-                async with make_aiohttp_session(proxy=self.network.proxy) as session:
-                    watchtower = JsonRPCClient(session, watchtower_url)
-                    watchtower.add_method('get_ctn')
-                    watchtower.add_method('add_sweep_tx')
-                    for chan in self.channels.values():
-                        await self.sync_channel_with_watchtower(chan, watchtower)
-            except aiohttp.ClientError:
-                self.logger.info(f'could not contact remote watchtower {watchtower_url}')
-
-    def get_watchtower_ctn(self, channel_point):
-        return self.watchtower_ctns.get(channel_point)
-
-    async def sync_channel_with_watchtower(self, chan: Channel, watchtower):
-        outpoint = chan.funding_outpoint.to_str()
-        addr = chan.get_funding_address()
-        current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
-        watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
-        for ctn in range(watchtower_ctn + 1, current_ctn):
-            sweeptxs = chan.create_sweeptxs_for_watchtower(ctn)
-            for tx in sweeptxs:
-                await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
-            self.watchtower_ctns[outpoint] = ctn
-
     async def main_loop(self):
         self.logger.info("starting taskgroup.")
         try:
@@ -1263,12 +1221,8 @@ class LNWallet(Logger):
         self.lnrater = LNRater(self, network)
         self.onion_message_manager.start_network(network=network)
 
-        for coro in [
-                self.reestablish_peers_and_channels(),
-                self.sync_with_remote_watchtower(),
-        ]:
-            tg_coro = self.taskgroup.spawn(coro)
-            asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
+        tg_coro = self.taskgroup.spawn(self.reestablish_peers_and_channels())
+        asyncio.run_coroutine_threadsafe(tg_coro, get_asyncio_loop())
 
     async def stop(self):
         self.lnpeermgr.stopping_soon = True

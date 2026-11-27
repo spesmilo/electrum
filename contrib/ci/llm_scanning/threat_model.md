@@ -109,7 +109,7 @@ correctly entered wallet password.
   not a vulnerability.
 - Routing nodes learn what any Lightning routing scheme reveals to them.
 - A hot wallet holds its keys in process memory.
-- Optional third-party services the user turns on (a cosigner, a watchtower, sync) are trusted for
+- Optional third-party services the user turns on (a cosigner, sync) are trusted for
   availability.
 - The payee's own description in an invoice or payment request is shown to the user. Showing it as plain
   text, as the payee's, is by design.

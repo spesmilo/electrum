@@ -682,43 +682,6 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob getbalance
 fi
 
-if [[ $1 == "watchtower" ]]; then
-    wait_for_balance alice 1
-    echo "alice opens channel"
-    bob_node=$($bob nodeid)
-    channel=$($alice open_channel $bob_node 0.15 --password='')
-    echo "channel outpoint: $channel"
-    new_blocks 3
-    wait_until_channel_open alice
-    echo "alice pays bob"
-    invoice1=$($bob add_request 0.01 --lightning --memo "invoice1" | jq -r ".lightning_invoice")
-    $alice lnpay $invoice1
-    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
-    echo "alice pays bob again"
-    invoice2=$($bob add_request 0.01 --lightning --memo "invoice2" | jq -r ".lightning_invoice")
-    $alice lnpay $invoice2
-    bob_ctn=$($bob list_channels | jq '.[0].local_ctn')
-    msg="waiting until watchtower is synchronized"
-    # watchtower needs to be at latest revoked ctn
-    while watchtower_ctn=$($bob get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((bob_ctn-1)) ]]; do
-        sleep 0.1
-        printf "$msg $bob_ctn $watchtower_ctn\r"
-    done
-    printf "\n"
-    echo "stopping alice and bob"
-    $bob stop
-    $alice stop
-    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
-    echo "alice breaches with old ctx:" $ctx_id
-    echo "watchtower publishes justice transaction"
-    if [ $TEST_SRK_CHANNELS != True ] ; then  # anchors
-        output_index=3
-    else  # srk
-        output_index=1
-    fi
-    wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
-fi
-
 if [[ $1 == "fw_fail_htlc" ]]; then
     $carol enable_htlc_settle false
     bob_node=$($bob nodeid)

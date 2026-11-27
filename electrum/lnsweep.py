@@ -2,7 +2,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Callable
+from typing import Optional, Dict, Tuple, TYPE_CHECKING, NamedTuple, Callable
 
 import electrum_ecc as ecc
 
@@ -69,128 +69,6 @@ class KeepWatchingTXO(NamedTuple):
 
 
 MaybeSweepInfo = SweepInfo | KeepWatchingTXO
-
-
-def sweep_their_ctx_watchtower(
-        chan: 'Channel',
-        ctx: Transaction,
-        per_commitment_secret: bytes
-) -> List[PartialTxInput]:
-    """Presign sweeping transactions using the just received revoked pcs.
-    These will only be utilised if the remote breaches.
-    Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
-    """
-    # prep
-    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-    breacher_conf, watcher_conf = get_ordered_channel_configs(chan=chan, for_us=False)
-    watcher_revocation_privkey = derive_blinded_privkey(
-        chan.keys.revocation_basepoint.privkey,
-        per_commitment_secret
-    )
-    to_self_delay = watcher_conf.to_self_delay
-    breacher_delayed_pubkey = derive_pubkey(breacher_conf.delayed_basepoint.pubkey, pcp)
-    txins = []
-    # create justice tx for breacher's to_local output
-    revocation_pubkey = ecc.ECPrivkey(watcher_revocation_privkey).get_public_key_bytes(compressed=True)
-    witness_script = make_commitment_output_to_local_witness_script(
-        revocation_pubkey, to_self_delay, breacher_delayed_pubkey)
-    to_local_address = redeem_script_to_address('p2wsh', witness_script)
-    output_idxs = ctx.get_output_idxs_from_address(to_local_address)
-    if output_idxs:
-        output_idx = output_idxs.pop()
-        txin = sweep_ctx_to_local(
-            ctx=ctx,
-            output_idx=output_idx,
-            witness_script=witness_script,
-            privkey=watcher_revocation_privkey,
-            is_revocation=True,
-        )
-        if txin:
-            txins.append(txin)
-
-    # create justice txs for breacher's HTLC outputs
-    breacher_htlc_pubkey = derive_pubkey(breacher_conf.htlc_basepoint.pubkey, pcp)
-    watcher_htlc_pubkey = derive_pubkey(watcher_conf.htlc_basepoint.pubkey, pcp)
-    def txin_htlc(
-            htlc: 'UpdateAddHtlc', is_received_htlc: bool,
-            ctx_output_idx: int) -> None:
-        htlc_output_witness_script = make_htlc_output_witness_script(
-            is_received_htlc=is_received_htlc,
-            remote_revocation_pubkey=revocation_pubkey,
-            remote_htlc_pubkey=watcher_htlc_pubkey,
-            local_htlc_pubkey=breacher_htlc_pubkey,
-            payment_hash=htlc.payment_hash,
-            cltv_abs=htlc.cltv_abs,
-            has_anchors=chan.has_anchors()
-        )
-        cltv_abs = htlc.cltv_abs if is_received_htlc else 0
-        return sweep_their_ctx_htlc(
-            ctx=ctx,
-            witness_script=htlc_output_witness_script,
-            preimage=None,
-            output_idx=ctx_output_idx,
-            privkey=watcher_revocation_privkey,
-            is_revocation=True,
-            cltv_abs=cltv_abs,
-            has_anchors=chan.has_anchors()
-        )
-    htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
-        chan=chan,
-        ctx=ctx,
-        pcp=pcp,
-        subject=REMOTE,
-        ctn=ctn)
-    for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
-        txins.append(
-            txin_htlc(
-                htlc=htlc,
-                is_received_htlc=direction == RECEIVED,
-                ctx_output_idx=ctx_output_idx)
-        )
-    # for anchor channels we don't know the HTLC transaction's txid beforehand due
-    # to malleability because of ANYONECANPAY
-    if chan.has_anchors():
-        return txins
-
-    # create justice transactions for HTLC transaction's outputs
-    def sweep_their_htlctx_justice(
-            *,
-            htlc: 'UpdateAddHtlc',
-            htlc_direction: Direction,
-            ctx_output_idx: int
-    ) -> Optional[PartialTxInput]:
-        htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(
-            chan=chan,
-            pcp=pcp,
-            subject=REMOTE,
-            ctn=ctn,
-            htlc_direction=htlc_direction,
-            commit=ctx,
-            htlc=htlc,
-            ctx_output_idx=ctx_output_idx)
-        return sweep_htlctx_output(
-            htlc_tx=htlc_tx,
-            output_idx=HTLCTX_INPUT_OUTPUT_INDEX,
-            htlctx_witness_script=htlc_tx_witness_script,
-            privkey=watcher_revocation_privkey,
-            is_revocation=True,
-        )
-
-    htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
-        chan=chan,
-        ctx=ctx,
-        pcp=pcp,
-        subject=REMOTE,
-        ctn=ctn)
-    for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
-        secondstage_sweep_tx = sweep_their_htlctx_justice(
-            htlc=htlc,
-            htlc_direction=direction,
-            ctx_output_idx=ctx_output_idx)
-        if secondstage_sweep_tx:
-            txins.append(secondstage_sweep_tx)
-    return txins
 
 
 def sweep_their_ctx_justice(
