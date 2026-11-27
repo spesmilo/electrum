@@ -360,6 +360,16 @@ class TestPaymentIdentifier(ElectrumTestCase):
         self.assertTrue(pi.is_multiline())
         self.assertIsNotNone(pi.error)
 
+        # disallow sub-satoshi amounts
+        pi_str = '\n'.join([
+            'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293,0.01',
+            'bc1q66ex4c3vek4cdmrfjxtssmtguvs3r30pf42jpj,0.010001',
+        ])
+        pi = PaymentIdentifier(self.wallet, pi_str)
+        self.assertFalse(pi.is_valid())
+        self.assertTrue(pi.is_multiline())
+        self.assertIn('line #1: Amount has too many decimals', pi.error)
+
     def test_spk(self):
         address = 'bc1qj3zx2zc4rpv3npzmznxhdxzn0wm7pzqp8p2293'
         for pi_str in [
