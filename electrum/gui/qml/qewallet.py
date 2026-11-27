@@ -17,7 +17,6 @@ from electrum.util import (
     InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop, NotEnoughFunds, NoDynamicFeeEstimates,
     UserFacingException,
 )
-from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -107,7 +106,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._frozenbalance = QEAmount()
         self._totalbalance = QEAmount()
         self._lightningcanreceive = QEAmount()
-        self._minchannelfunding = QEAmount(amount_sat=int(MIN_FUNDING_SAT))
+        self._minchannelfunding = QEAmount(amount_sat=int(self.wallet.config.LIGHTNING_MIN_FUNDING_SAT))
         self._lightningcansend = QEAmount()
         self._lightningbalancefrozen = QEAmount()
 
