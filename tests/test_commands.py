@@ -866,8 +866,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         assert await cmds.export_lightning_preimage(payment_hash=payment_hash.hex(), wallet=w) == preimage.hex()
         assert await cmds.export_lightning_preimage(payment_hash=os.urandom(32).hex(), wallet=w) is None
 
-    @mock.patch('electrum.commands.LN_P2P_NETWORK_TIMEOUT', 0.001)
-    async def test_add_peer(self, *mock_args):
+    async def test_add_peer(self):
         w = restore_wallet_from_text__for_unittest(
             'disagree rug lemon bean unaware square alone beach tennis exhibit fix mimic',
             path=None,
@@ -880,6 +879,7 @@ class TestCommandsTestnet(ElectrumTestCase):
         w.lnworker = mock_lnworker
         mock_peer = mock.Mock()
         mock_peer.initialized = asyncio.Future()
+        mock_peer.initialized.set_exception(ConnectionRefusedError())
         connection_string = "test_node_id@127.0.0.1:9735"
         called = 0
         async def lnpeermgr_add_peer(*args, **kwargs):
@@ -889,8 +889,8 @@ class TestCommandsTestnet(ElectrumTestCase):
             return mock_peer
         mock_lnworker.lnpeermgr.add_peer = lnpeermgr_add_peer
 
-        # check if add_peer times out if peer doesn't initialize (LN_P2P_NETWORK_TIMEOUT is 0.001s)
-        with self.assertRaises(UserFacingException):
+        # check if add_peer raises the reason if the peer fails to initialize
+        with self.assertRaisesRegex(UserFacingException, "ConnectionRefusedError"):
             await cmds.add_peer(connection_string=connection_string, wallet=w)
         # check if add_peer called lnpeermgr.add_peer
         assert called == 1
