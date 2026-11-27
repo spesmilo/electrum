@@ -6,6 +6,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularEx
 
 from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from electrum.i18n import set_language, get_gui_lang_names
+from electrum import logging as electrum_logging
 from electrum.logging import get_logger
 from electrum.util import base_unit_name_to_decimal_point
 from electrum.gui import messages
@@ -180,6 +181,22 @@ class QEConfig(AuthMixin, QObject):
     def useGossip(self, gossip):
         self.config.LIGHTNING_USE_GOSSIP = gossip
         self.useGossipChanged.emit()
+
+    writeLogsToDiskChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=writeLogsToDiskChanged)
+    def writeLogsToDisk(self):
+        return self.config.WRITE_LOGS_TO_DISK
+
+    @writeLogsToDisk.setter
+    def writeLogsToDisk(self, enable):
+        self.config.WRITE_LOGS_TO_DISK = enable
+        electrum_logging.set_file_logging(self.config, enable)
+        self.writeLogsToDiskChanged.emit()
+
+    @pyqtProperty(bool, notify=writeLogsToDiskChanged)
+    def logsAreWrittenToDisk(self):
+        """whether the logs are written to files now: also in a debug build, whatever the setting says"""
+        return electrum_logging.get_logfile_path() is not None
 
     enableDebugLogsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=enableDebugLogsChanged)

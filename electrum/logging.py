@@ -2,6 +2,9 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
+import ast
+import hmac
+import ipaddress
 import logging
 import logging.handlers
 import datetime
@@ -10,7 +13,8 @@ import sys
 import pathlib
 import os
 import platform as py_platform
-from typing import Optional, TYPE_CHECKING, Set
+import re
+from typing import Optional, TYPE_CHECKING, Set, Iterable, List, Callable
 import copy
 import subprocess
 import hashlib
@@ -19,6 +23,7 @@ from electrum import platform
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
+    from .wallet import Abstract_Wallet
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -119,24 +124,27 @@ class TruncatingMemoryHandler(logging.handlers.MemoryHandler):
         super().close()
 
 
+def _sortkey_of_log_file_oldest_first(p: pathlib.PurePath):
+    fname = p.name
+    basename, ext, counter = str(fname).partition(".log")
+    # - each time electrum is launched, there will be a new basename, ordered by date
+    # - for any given basename, there might be multiple log files, differing by counter
+    #   - empty counter is newest, then .1 is older, .2 is even older, etc
+    try:
+        counter = int(counter[1:]) if counter else 0  # convert ".2" -> 2
+    except ValueError:
+        _logger.warning(f"failed to parse log file name: {fname}")
+        counter = 0
+    return basename, -counter
+
+
+def _log_files_oldest_first(path) -> List[pathlib.Path]:
+    return sorted(pathlib.Path(path).glob("electrum_log_*.log*"), key=_sortkey_of_log_file_oldest_first)
+
+
 def _delete_old_logs(path, *, num_files_keep: int, max_total_size: int):
     """Delete old logfiles, only keeping the latest few."""
-    def sortkey_oldest_first(p: pathlib.PurePath):
-        fname = p.name
-        basename, ext, counter = str(fname).partition(".log")
-        # - each time electrum is launched, there will be a new basename, ordered by date
-        # - for any given basename, there might be multiple log files, differing by counter
-        #   - empty counter is newest, then .1 is older, .2 is even older, etc
-        try:
-            counter = int(counter[1:]) if counter else 0  # convert ".2" -> 2
-        except ValueError:
-            _logger.warning(f"failed to parse log file name: {fname}")
-            counter = 0
-        return basename, -counter
-    files = sorted(
-        list(pathlib.Path(path).glob("electrum_log_*.log*")),
-        key=sortkey_oldest_first,
-    )
+    files = _log_files_oldest_first(path)
     total_size = sum(os.stat(f).st_size for f in files)  # in bytes
     num_files_remaining = len(files)
     for f in files:
@@ -152,6 +160,7 @@ def _delete_old_logs(path, *, num_files_keep: int, max_total_size: int):
 
 
 _logfile_path = None
+_file_handler = None  # type: Optional[logging.Handler]
 def _configure_file_logging(
     log_directory: pathlib.Path,
     *,
@@ -160,7 +169,7 @@ def _configure_file_logging(
 ):
     from .util import os_chmod
 
-    global _logfile_path
+    global _logfile_path, _file_handler
     assert _logfile_path is None, 'file logging already initialized'
     log_directory.mkdir(exist_ok=True, mode=0o700)
 
@@ -169,6 +178,10 @@ def _configure_file_logging(
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     PID = os.getpid()
     _logfile_path = log_directory / f"electrum_log_{timestamp}_{PID}.log"
+    num = 1
+    while _logfile_path.exists():  # file logging got switched off and on again within the second
+        _logfile_path = log_directory / f"electrum_log_{timestamp}_{PID}_{num}.log"
+        num += 1
     # we create the file with restrictive perms, instead of letting FileHandler create it
     with open(_logfile_path, "w+") as f:
         os_chmod(_logfile_path, 0o600)
@@ -182,6 +195,7 @@ def _configure_file_logging(
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
+    _file_handler = file_handler
     if _inmemory_startup_logs:
         _inmemory_startup_logs.dump_to_target(file_handler)
 
@@ -334,16 +348,287 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
         root_logger.removeHandler(_inmemory_startup_logs)
         _inmemory_startup_logs = None
 
-    from . import ELECTRUM_VERSION
-    from .constants import GIT_REPO_URL
-    _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - {GIT_REPO_URL}")
-    _logger.info(f"Python version: {sys.version}. On platform: {describe_os_version()}")
+    _log_versions()
     _logger.info(f"Logging to file: {str(_logfile_path)}")
     _logger.info(f"Log filters: verbosity {repr(verbosity)}")
 
 
+def _log_versions() -> None:
+    from . import ELECTRUM_VERSION
+    from .constants import GIT_REPO_URL
+    _logger.info(f"Electrum version: {ELECTRUM_VERSION} - https://electrum.org - {GIT_REPO_URL}")
+    _logger.info(f"Python version: {sys.version}. On platform: {describe_os_version()}")
+
+
 def get_logfile_path() -> Optional[pathlib.Path]:
     return _logfile_path
+
+
+def set_file_logging(config: 'SimpleConfig', enabled: bool) -> None:
+    """Starts or stops writing the logs to files, while running. (configure_logging does it at startup)"""
+    from .util import is_android_debug_apk
+    global _logfile_path, _file_handler
+    if enabled and _logfile_path is None:
+        _configure_file_logging(
+            pathlib.Path(config.path) / "logs",
+            num_files_keep=config.LOGS_NUM_FILES_KEEP,
+            max_total_size=config.LOGS_MAX_TOTAL_SIZE_BYTES)
+        _logger.info(f"Logging to file: {str(_logfile_path)}")
+        _log_versions()  # (at the start of each log file)
+    elif not enabled and _file_handler is not None and not is_android_debug_apk():
+        _logger.info("Logging to file stops")
+        root_logger.removeHandler(_file_handler)
+        _file_handler.close()
+        _file_handler = None
+        _logfile_path = None
+
+
+def read_recent_logs(config: 'SimpleConfig', *, max_size: int) -> str:
+    """Returns the end of the newest log files, oldest first: at most max_size bytes, starting at a whole line."""
+    parts = []  # newest first
+    size = 0
+    starts_mid_line = False  # whether the oldest part we read starts in the middle of a line
+    for path in reversed(_log_files_oldest_first(pathlib.Path(config.path) / "logs")):
+        if size >= max_size:
+            break
+        try:
+            with open(path, 'rb') as f:
+                start = max(0, os.path.getsize(path) - (max_size - size))
+                f.seek(max(0, start - 1))
+                data = f.read(max_size - size + (1 if start else 0))
+        except OSError:
+            continue
+        if start:
+            # (the byte before tells whether we start at a whole line)
+            starts_mid_line, data = data[:1] != b'\n', data[1:]
+        else:
+            starts_mid_line = False
+        if data and not data.endswith(b'\n'):
+            data += b'\n'  # the file got cut, e.g. as we were killed while writing it
+        parts.append(data)
+        size += len(data)
+    text = b''.join(reversed(parts)).decode('utf-8', 'replace')
+    if starts_mid_line:
+        text = text[text.find('\n') + 1:]
+    return text
+
+
+# The logs that a user may send to the developers keep only what is about Lightning payments and the network
+# graph: the loggers of these modules. Others print transactions, PSBTs, addresses, labels and the like.
+SHARED_LOG_SOURCES = (
+    'lnworker', 'lnrouter', 'lnpeer', 'channel_db', 'gossip_catch_up', 'trampoline', 'lnverifier', 'lnonion',
+    'mpp_split', 'lnutil',
+    'logging',  # the version of Electrum and of the OS
+)
+_LOG_ENTRY_HEAD = re.compile(r'^\d{8}T\d{6}\.\d+Z \|\s*\w+ \| ([^.| \[]+)')
+
+
+def filter_log_for_sharing(text: str) -> str:
+    """Keeps the entries of the log written by SHARED_LOG_SOURCES, with the lines that continue them."""
+    kept = []
+    keep = False
+    for line in text.splitlines(keepends=True):
+        if m := _LOG_ENTRY_HEAD.match(line):
+            keep = m.group(1) in SHARED_LOG_SOURCES
+        if keep:
+            kept.append(line)
+    return ''.join(kept)
+
+
+class _LogRedactor:
+    """Replaces what identifies the user's coins, payments, channels and peers in log text by labels like
+    <hash 3fa9c1d2>: an HMAC of the value with a secret key. The same value gets the same label, so what
+    refers to the same thing can still be told, but the value cannot be got back from the label, nor found
+    by trying the values one knows (like the public nodes of the network), without the key."""
+
+    _BECH32 = '02-9ac-hj-np-z'
+    _BYTES = re.compile(r"""\bb(?:'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")""")
+    _RULES = (  # (kind, pattern, group to replace or 0). order matters
+        ('invoice', re.compile(rf'\b(?:lightning:)?ln(?:bc|tbs|tb|bcrt|sb)[0-9]*[munp]?1[{_BECH32}]{{20,}}', re.I), 0),
+        ('invoice', re.compile(rf'\b(?:lightning:)?ln[oir]1[{_BECH32}]{{20,}}', re.I), 0),
+        ('lnurl', re.compile(rf'\b(?:lightning:)?lnurl1[{_BECH32}]{{20,}}', re.I), 0),
+        ('address', re.compile(rf'\b(?:bc|tb|bcrt)1[{_BECH32}]{{8,87}}\b', re.I), 0),
+        ('key', re.compile(r'\b[xyztuvYZUV](?:pub|prv)[1-9A-HJ-NP-Za-km-z]{100,}'), 0),
+        ('key', re.compile(r'\b[5KLc9][1-9A-HJ-NP-Za-km-z]{50,51}\b'), 0),  # WIF
+        ('address', re.compile(r'\b[13mn2][1-9A-HJ-NP-Za-km-z]{25,34}\b'), 0),
+        ('onion', re.compile(r'\b[a-z2-7]{56}\.onion\b', re.I), 0),
+        ('channel in hex', re.compile(r'(?<![0-9a-fA-F])([0-9a-f]{16}):\d'), 1),  # the key of an htlc
+        ('host', re.compile(r'@([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.?):\d'), 1),  # of a peer: node_id@host:port
+        ('host', re.compile(r'failed to connect ([^\s<]+) '), 1),
+        ('node', re.compile(r'(?<![0-9a-fA-F])0[23][0-9a-fA-F]{64}(?![0-9a-fA-F])'), 0),
+        # 20 bytes or more in hex: hashes, secrets, txids, channel ids, scripts, transactions
+        ('hash', re.compile(r'(?<![0-9a-fA-F])[0-9a-fA-F]{40,}(?![0-9a-fA-F])'), 0),
+        ('data', re.compile(r'(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/=])'), 0),  # base64
+        # the start of node ids, as routes and peers are logged
+        ('node', re.compile(r'(?<![0-9A-Za-z])0[23][0-9a-f]{8}(?![0-9A-Za-z])'), 0),
+        ('node', re.compile(r'(?:peers \(msgs/s, old updates\): |, )(0[23][0-9a-f]{4})(?= )'), 1),
+        ('channel', re.compile(r'(?<![\w.])\d+x\d+x\d+(?!\w)'), 0),
+        ('ip', re.compile(r'(?<![\w.:])(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}(?![\w:])'), 0),
+        ('ip', re.compile(r'(?<![\w.:])(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*)?::'
+                          r'(?:(?:[0-9a-fA-F]{1,4}:)*(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F]{1,4}))?(?![\w:.])'), 0),
+        ('ip', re.compile(r'(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)(?!\w)'), 0),
+        ('server', re.compile(r'interface\.\[([^\]]+)\]'), 1),
+        # elsewhere as host:port:protocol, e.g. the server a job on the default server starts with. (host names
+        # may have _ and end with a dot, but not end with a part of digits only, so that a time like 10:30:s is not one;
+        # an ip or onion address got its label above)
+        ('server', re.compile(r'(?<![\w.<-])((?:[A-Za-z0-9_-]+\.)*(?![0-9]+\.?:)[A-Za-z0-9_-]+\.?:\d{1,5}):[st](?![\w:])'), 1),
+        ('payment', re.compile(r'PaySession\.\[([0-9a-f]{8}-[0-9a-f]{4})\]'), 1),
+    )
+    _LABEL = re.compile(r'(<(?:our )?[a-z]+ [0-9a-f]{8}>)')
+    _CHANNELS_WITH_FUNDS = re.compile(r'channels_with_funds: \{.*?\}(?=, have_direct_channel|$)', re.M)
+    # where the logs name a wallet, and what a wallet logs about its own payments
+    _WALLET_NAMES = (
+        # (in the head of the entries only, as the messages may be anything a peer sent; names of a sane length)
+        re.compile(r'^\d{8}T\d{6}\.\d+Z \|\s*\w+ \| lnworker\.(?:LNWallet|LNPeerManager)\.\[(?!LNGossip\])'
+                   r'(.{1,255}?)\](?= \||\Z)', re.M),
+        re.compile(r'^\d{8}T\d{6}\.\d+Z \|\s*\w+ \| lnpeer\.Peer\.\[(?!LNGossip,)'
+                   r'(.{1,255}?), (?=[^,\]\n]*\] \||\Z)', re.M),  # (up to the name of the transport)
+    )
+    _WALLET_PATH = re.compile(r'/wallets/([^/\s\'"]+)')
+    _OUR_CHANNEL = re.compile(r'sent htlc \d+ over ([0-9]+x[0-9]+x[0-9]+)')
+    _SCID = re.compile(r'(?<![\w.])\d+x\d+x\d+(?!\w)')
+    # the peers of a wallet and the route hints of its invoices are about its channels
+    _ABOUT_OUR_CHANNELS = re.compile(
+        r'^[^|\n]*\|[^|\n]*\| (?:lnpeer\.Peer\.\[(?!LNGossip,)[^\]\n]*\] \| .*'
+        r'|lnworker\.LNWallet\.\[[^\]\n]*\] \| creating bolt11 invoice with routing_hints: .*)$', re.M)
+    _OUR_FIRST_HOP = re.compile(r'route: (0[23][0-9a-f]{8}) -\[([0-9]+x[0-9]+x[0-9]+) ')
+
+    def __init__(self, *, key: bytes, our_node_ids: Iterable[str] = (), our_channels: Iterable[str] = (),
+                 wallet_names: Iterable[str] = ()):
+        self._key = key
+        self._our_nodes = {n[:10].lower() for n in our_node_ids if n}  # (routes are logged with the start of node ids)
+        self._our_channels = set(our_channels)
+        self._wallet_names = {name for name in wallet_names if name and len(name) >= 3}
+        home = os.path.expanduser('~')
+        self._home = home if len(home) > 1 else ''  # (tracebacks show paths in it, with the user name)
+
+    def _label(self, kind: str, value: str) -> str:
+        """kind is what the value is: the values of nodes are the starts of their ids, see _RULES"""
+        if kind == 'node':
+            value = value[:10].lower()
+        elif kind == 'hash':
+            value = value.lower()
+        digest = hmac.new(self._key, f'{kind}:{value}'.encode('utf-8'), hashlib.sha256).hexdigest()[:8]
+        if kind == 'node' and value in self._our_nodes:
+            kind = 'our node'
+        elif kind == 'channel' and value in self._our_channels:
+            kind = 'our channel'
+        return f'<{kind} {digest}>'
+
+    @staticmethod
+    def _is_ip(value: str) -> bool:
+        try:
+            ipaddress.ip_address(value)
+        except ValueError:
+            return False
+        return True
+
+    def _label_of_bytes(self, literal: str) -> str:
+        try:
+            value = ast.literal_eval(literal)
+            assert isinstance(value, bytes)
+        except Exception:
+            return self._label('bytes', literal)
+        if len(value) == 33 and value[0] in (2, 3):
+            return self._label('node', value.hex())
+        if len(value) == 8:  # a short channel id, likely
+            return self._label('channel', '{}x{}x{}'.format(
+                int.from_bytes(value[:3], 'big'), int.from_bytes(value[3:6], 'big'), int.from_bytes(value[6:], 'big')))
+        if len(value) >= 20:  # the same label as the same bytes in hex
+            return self._label('hash', value.hex())
+        return self._label('bytes', value.hex())
+
+    def redact(self, text: str) -> str:
+        self._our_channels.update(m.group(1) for m in self._OUR_CHANNEL.finditer(text))
+        for m in self._ABOUT_OUR_CHANNELS.finditer(text):
+            self._our_channels.update(self._SCID.findall(m.group(0)))
+        for m in self._OUR_FIRST_HOP.finditer(text):
+            self._our_nodes.add(m.group(1))
+            self._our_channels.add(m.group(2))
+        # (names in logger names, any of them; elsewhere, those long enough not to be found in other words)
+        names_in_logger_names = {
+            name for pattern in self._WALLET_NAMES for m in pattern.finditer(text)
+            if not self._LABEL.fullmatch(name := m.group(1))}
+        wallet_names = {name for name in names_in_logger_names | self._wallet_names if len(name) >= 3}
+        if self._home:
+            text = text.replace(self._home, '~')
+        text = self._CHANNELS_WITH_FUNDS.sub('channels_with_funds: <balances>', text)
+        text = self._BYTES.sub(lambda m: self._label_of_bytes(m.group(0)), text)
+        for kind, pattern, group in self._RULES:
+            def replace(m, kind=kind, group=group):
+                if group == 0:
+                    return self._label(kind, m.group(0))
+                if kind == 'channel in hex':
+                    value = bytes.fromhex(m.group(group))
+                    new = self._label('channel', '{}x{}x{}'.format(
+                        int.from_bytes(value[:3], 'big'), int.from_bytes(value[3:6], 'big'), int.from_bytes(value[6:], 'big')))
+                elif kind == 'host' and self._is_ip(m.group(group)):
+                    new = self._label('ip', m.group(group))  # (the same label as where the ip is logged otherwise)
+                else:
+                    new = self._label(kind, m.group(group))
+                start, end = m.span(group)
+                return m.group(0)[:start - m.start()] + new + m.group(0)[end - m.start():]
+            text = pattern.sub(replace, text)
+        # the names of wallets last, as they may be anything (e.g. a number that is part of an ip address),
+        # and not within the labels
+        def outside_labels(replace: Callable[[str], str], text: str) -> str:
+            return ''.join(part if i % 2 else replace(part) for i, part in enumerate(self._LABEL.split(text)))
+
+        def in_logger_name(m: re.Match) -> str:
+            if m.group(1) not in names_in_logger_names:
+                return m.group(0)
+            start, end = m.start(1) - m.start(), m.end(1) - m.start()
+            return m.group(0)[:start] + self._label('wallet', m.group(1)) + m.group(0)[end:]
+        # (the whole names first, then what is left in logger names: e.g. short names)
+        if wallet_names:
+            names = re.compile(
+                r'(?<![0-9A-Za-z])(?:' + '|'.join(re.escape(v) for v in sorted(wallet_names, key=len, reverse=True))
+                + r')(?![0-9A-Za-z])')
+            text = outside_labels(lambda part: names.sub(lambda m: self._label('wallet', m.group(0)), part), text)
+        for pattern in self._WALLET_NAMES:
+            text = outside_labels(lambda part, pattern=pattern: pattern.sub(in_logger_name, part), text)
+        # and the files of wallets that are named nowhere else
+        text = outside_labels(lambda part: self._WALLET_PATH.sub(
+            lambda m: '/wallets/' + self._label('wallet', m.group(1)), part), text)
+        return text
+
+
+def what_identifies_us_in_logs(wallets: Iterable['Abstract_Wallet']) -> dict:
+    """The node ids, channels and wallet names of these wallets, as redact_log_text takes them."""
+    from .lnutil import ShortChannelID
+    ours = {'our_node_ids': [], 'our_channels': [], 'wallet_names': []}
+    for wallet in wallets:
+        ours['wallet_names'].append(wallet.basename())
+        lnworker = wallet.lnworker
+        if lnworker is None:
+            continue
+        ours['our_node_ids'].append(lnworker.node_keypair.pubkey.hex())
+        for chan in list(lnworker.channels.values()) + list(lnworker.channel_backups.values()):
+            if chan.short_channel_id:
+                ours['our_channels'].append(str(chan.short_channel_id))
+            for alias in (chan.get_local_scid_alias(), chan.get_remote_scid_alias()):
+                if alias:
+                    ours['our_channels'].append(str(ShortChannelID(alias)))
+    return ours
+
+
+def log_sharing_key(config: 'SimpleConfig') -> bytes:
+    """The key of the labels in the logs we share (see _LogRedactor), created the first time. It is kept,
+    so that the same value gets the same label in the logs shared later too."""
+    key = config.LOGS_SHARING_KEY
+    if not key or len(key) != 64:
+        key = os.urandom(32).hex()
+        config.LOGS_SHARING_KEY = key
+    return bytes.fromhex(key)
+
+
+def redact_log_text(text: str, *, key: Optional[bytes] = None, our_node_ids: Iterable[str] = (),
+                    our_channels: Iterable[str] = (), wallet_names: Iterable[str] = ()) -> str:
+    """See _LogRedactor. Without a key, a new random one. The node ids, channels and wallet names given are
+    labelled as ours: those of the wallets loaded now. Those of other wallets are found where the logs mention
+    them as ours, and are replaced all the same."""
+    return _LogRedactor(key=key if key is not None else os.urandom(32), our_node_ids=our_node_ids,
+                        our_channels=our_channels, wallet_names=wallet_names).redact(text)
 
 
 def describe_os_version() -> str:

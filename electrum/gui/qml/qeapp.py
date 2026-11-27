@@ -16,7 +16,8 @@ from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 import electrum
 from electrum import version, constants, platform
 from electrum.i18n import _
-from electrum.logging import Logger, get_logger
+from electrum.logging import (Logger, get_logger, read_recent_logs, redact_log_text, filter_log_for_sharing,
+                              what_identifies_us_in_logs, log_sharing_key)
 from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
@@ -68,8 +69,38 @@ if platform.is_android():
 notification = None
 
 
+def _save_text_to_downloads(filename: str, text: str):
+    """Creates a text file in the public Downloads folder (android 10+). returns its content uri."""
+    jMediaDownloads = autoclass('android.provider.MediaStore$Downloads')
+    jContentValues = autoclass('android.content.ContentValues')
+    values = jContentValues()
+    values.put('_display_name', filename)
+    values.put('mime_type', 'text/plain')
+    resolver = jpythonActivity.getContentResolver()
+    uri = resolver.insert(jMediaDownloads.EXTERNAL_CONTENT_URI, values)
+    if uri is None:
+        raise Exception('could not create the file in Downloads')
+    pfd = resolver.openFileDescriptor(uri, 'w')
+    with os.fdopen(pfd.detachFd(), 'wb') as f:
+        f.write(text.encode('utf-8'))
+    return uri
+
+
+def _share_file(uri, title: str) -> None:
+    sendIntent = jIntent()
+    sendIntent.setAction(jIntent.ACTION_SEND)
+    sendIntent.setType('text/plain')
+    sendIntent.putExtra(jIntent.EXTRA_STREAM, cast('android.os.Parcelable', uri))
+    sendIntent.addFlags(jIntent.FLAG_GRANT_READ_URI_PERMISSION)
+    it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
+    it.addFlags(jIntent.FLAG_GRANT_READ_URI_PERMISSION)
+    jpythonActivity.startActivity(it)
+
+
 class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
+    _logFileReady = pyqtSignal(str, str)
+    MAX_SHARED_LOG_SIZE = 20_000_000  # bytes read from the end of the newest log files, before filtering
     userNotify = pyqtSignal(str, str)
     uriReceived = pyqtSignal(str)
     showException = pyqtSignal('QVariantMap')
@@ -109,6 +140,8 @@ class QEAppController(BaseCrashReporter, QObject):
         QEDaemon.instance.walletLoaded.connect(self.on_wallet_loaded)
 
         self.userNotify.connect(self.doNotify)
+        self._log_file_busy = False
+        self._logFileReady.connect(self._on_log_file_ready)
 
         if self.isAndroid():
             self.bindIntent()
@@ -310,6 +343,54 @@ class QEAppController(BaseCrashReporter, QObject):
         sendIntent.putExtra(jIntent.EXTRA_TEXT, jString(data))
         it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
         jpythonActivity.startActivity(it)
+
+    @pyqtSlot()
+    def shareLogFile(self):
+        """Saves the end of the log files, without private data (see redact_log_text), to a file, and shares it:
+        e.g. to send it to the developers. The files can be big, so they are read in a thread."""
+        if self._log_file_busy or not self.isAndroid():
+            return
+        self._log_file_busy = True
+        try:
+            daemon = QEDaemon.instance.daemon if QEDaemon.instance else None
+            ours = what_identifies_us_in_logs(daemon.get_wallets().values() if daemon else [])
+            key = log_sharing_key(self.config)
+        except Exception:
+            self.logger.exception('failed to collect what to remove from the logs')
+            self._log_file_busy = False
+            self.userNotify.emit('', _('Could not collect the log'))
+            return
+
+        def task():
+            try:
+                text = filter_log_for_sharing(read_recent_logs(self.config, max_size=self.MAX_SHARED_LOG_SIZE))
+                self._logFileReady.emit(redact_log_text(text, key=key, **ours), '')
+            except Exception as e:
+                self.logger.exception('failed to collect the logs')
+                self._logFileReady.emit('', repr(e))
+        self.userNotify.emit('', _('Collecting the log...'))
+        threading.Thread(target=task, daemon=True, name='log-file').start()
+
+    def _on_log_file_ready(self, text: str, error: str):
+        self._log_file_busy = False
+        if error:
+            self.userNotify.emit('', _('Could not collect the log') + f': {error}')
+            return
+        if not text:
+            self.userNotify.emit('', _('The log is empty'))
+            return
+        try:
+            if systemSdkVersion < 29:  # no MediaStore.Downloads: share the end of it as plain text instead
+                end = text[-100_000:]
+                self.doShare(end[end.find('\n') + 1:] if len(text) > len(end) else end, _('Electrum log'))
+                return
+            filename = f'electrum-log-{time.strftime("%Y%m%d-%H%M%S")}.txt'
+            uri = _save_text_to_downloads(filename, text)
+            self.userNotify.emit('', _('Saved to Downloads') + f': {filename}')
+            _share_file(uri, _('Electrum log'))
+        except Exception as e:
+            self.logger.exception('failed to save the log file')
+            self.userNotify.emit('', _('Could not save the log') + f': {e!r}')
 
     @pyqtSlot(result=bool)
     def isMaxBrightnessOnQrDisplayEnabled(self):
