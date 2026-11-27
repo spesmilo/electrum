@@ -45,7 +45,6 @@ import electrum_ecc as ecc
 
 from . import util
 from .lnmsg import OnionWireSerializer
-from .lnworker import LN_P2P_NETWORK_TIMEOUT
 from .logging import Logger
 from .onion_message import create_blinded_path, send_onion_message_to
 from .submarine_swaps import NostrTransport
@@ -1741,9 +1740,8 @@ class Commands(Logger):
         lnworker = self.network.lngossip if gossip else wallet.lnworker
         peer = await lnworker.lnpeermgr.add_peer(connection_string)
         try:
-            await util.wait_for2(peer.initialized, timeout=LN_P2P_NETWORK_TIMEOUT)
+            await peer.initialized
         except (CancelledError, Exception) as e:
-            #  FIXME often simply CancelledError and real cause (e.g. timeout) remains hidden
             raise UserFacingException(f"Connection failed: {repr(e)}")
         return True
 

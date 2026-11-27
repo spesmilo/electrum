@@ -32,9 +32,9 @@ from electrum.bolt11 import encode_bolt11_invoice, BOLT11Addr
 from electrum.bitcoin import sha256
 from electrum.transaction import Transaction
 from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener, InvoiceError
-from electrum.lnpeer import Peer
+from electrum.lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from electrum.lnpeer import CoopCloseFailure
-from electrum.lntransport import LNPeerAddr
+from electrum.lntransport import LNPeerAddr, LNTransport, LNResponderTransport, LightningPeerConnectionClosed
 from electrum.crypto import privkey_to_pubkey
 from electrum.lnutil import Keypair, PaymentFailure, LnFeatures, HTLCOwner, PaymentFeeBudget, RECEIVED
 from electrum.lnchannel import ChannelState, PeerState, Channel, CF_ANNOUNCE_CHANNEL
@@ -323,6 +323,50 @@ class TestPeerUtils(TestPeer):
             )
             alice, _ = graph.peers.values()
             self.assertTrue(alice.features.supports(LnFeatures.OPTION_ZEROCONF_OPT))
+
+    async def test_initialized_future_resolves_on_failed_connection(self):
+        """The self.initialized future should raise the reason why the connection failed, so consumers
+        awaiting it don't wait until their timeout if the connection failed"""
+        lnworker = self.create_mock_lnwallet(name='alice')
+        remote_key = ECPrivkey.generate_random_key()
+        remote_pubkey = remote_key.get_public_key_bytes()
+
+        async def assert_initialized_raises(expected_exception, *, port: int):
+            peer_addr = LNPeerAddr('127.0.0.1', port, remote_pubkey)
+            transport = LNTransport(lnworker.node_keypair.privkey, peer_addr, e_proxy=None)
+            peer = Peer(lnworker, remote_pubkey, transport)
+            main_loop_task = asyncio.create_task(peer.main_loop())
+            try:
+                async with timeout_after(LN_P2P_NETWORK_TIMEOUT // 5):
+                    with self.assertRaises(expected_exception):
+                        await peer.initialized
+                    await main_loop_task
+                self.assertTrue(peer.got_disconnected.is_set())
+            finally:
+                if not main_loop_task.done():
+                    main_loop_task.cancel()
+
+        async def start_remote(*, disconnect_after_handshake: bool) -> asyncio.Server:
+            async def cb(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+                await LNResponderTransport(remote_key.get_secret_bytes(), reader, writer).handshake()
+                if not disconnect_after_handshake:
+                    await reader.read()  # stay connected until they hang up, but never send init
+                writer.close()
+            return await asyncio.start_server(cb, '127.0.0.1', port=None)
+
+        with self.subTest("connection refused"):
+            await assert_initialized_raises(ConnectionRefusedError, port=lnhelpers.find_free_port())
+
+        with self.subTest("remote disconnects after the handshake"):
+            async with await start_remote(disconnect_after_handshake=True) as server:
+                port = server.sockets[0].getsockname()[1]
+                await assert_initialized_raises(LightningPeerConnectionClosed, port=port)
+
+        with self.subTest("remote never sends init"):
+            async with await start_remote(disconnect_after_handshake=False) as server:
+                port = server.sockets[0].getsockname()[1]
+                with mock.patch('electrum.lnpeer.LN_P2P_NETWORK_TIMEOUT', 0.2):
+                    await assert_initialized_raises(asyncio.TimeoutError, port=port)
 
 
 class TestPeerDirect(TestPeer):

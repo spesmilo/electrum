@@ -8,7 +8,7 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Coroutine, List, Any
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set, Callable, Coroutine, List, Any, AsyncIterator
 from datetime import datetime
 import functools
 from functools import partial
@@ -97,7 +97,6 @@ class Peer(Logger, EventListener):
         self.network = lnworker.network
         self.asyncio_loop = self.network.asyncio_loop
         self.is_channel_backup = is_channel_backup
-        self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
         self.initialized = self.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
@@ -173,19 +172,13 @@ class Peer(Logger, EventListener):
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
             self.lnworker.save_channel(chan)
 
-    def maybe_set_initialized(self):
-        if self.initialized.done():
-            return
-        if self._sent_init and self._received_init:
-            self.initialized.set_result(True)
-
     def is_initialized(self) -> bool:
         return (self.initialized.done()
                 and not self.initialized.cancelled()
                 and self.initialized.exception() is None
                 and self.initialized.result() is True)
 
-    async def initialize(self):
+    async def initialize(self, messages: AsyncIterator[bytes]) -> None:
         # If outgoing transport, do handshake now. For incoming, it has already been done.
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
@@ -199,8 +192,12 @@ class Peer(Logger, EventListener):
                 'networks':
                 {'chains': constants.net.rev_genesis_bytes()}
             })
-        self._sent_init = True
-        self.maybe_set_initialized()
+        async for msg in messages:
+            await self._process_message(msg)
+            if self._received_init:
+                break
+        if not self.initialized.done():  # a canceled waiter might have canceled this future too
+            self.initialized.set_result(True)
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
@@ -424,11 +421,7 @@ class Peer(Logger, EventListener):
         except IncompatibleOrInsaneFeatures as e:
             raise GracefulDisconnect(f"remote sent insane features: {repr(e)}")
         # check if features are compatible, and set self.features to what we negotiated
-        try:
-            self.features = ln_compare_features(self.features, self.their_features)
-        except IncompatibleLightningFeatures as e:
-            self.initialized.set_exception(e)
-            raise GracefulDisconnect(f"{str(e)}")
+        self.features = ln_compare_features(self.features, self.their_features)  # raises if incompatible
         self.logger.info(
             f"received INIT with features={str(self.their_features.get_names())}. "
             f"negotiated={str(self.features)}")
@@ -441,7 +434,6 @@ class Peer(Logger, EventListener):
         # all checks passed
         self.lnworker.lnpeermgr.on_peer_successfully_established(self)
         self._received_init = True
-        self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
         if self.lnworker.uses_trampoline():
@@ -567,10 +559,7 @@ class Peer(Logger, EventListener):
     async def main_loop(self):
         async with self.taskgroup as group:
             await group.spawn(self._message_loop())  # initializes connection
-            try:
-                await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
-            except Exception as e:
-                raise GracefulDisconnect(f"Failed to initialize: {e!r}") from e
+            await self.initialized  # if init failed, the taskgroup re-raises what _message_loop failed with
             await group.spawn(self._monitor_connection())
             await group.spawn(self._query_gossip())
             await group.spawn(self._process_gossip())
@@ -907,12 +896,22 @@ class Peer(Logger, EventListener):
             encoded_short_ids=prefix+s)
 
     async def _message_loop(self):
+        messages = self._read_messages()
         try:
-            await util.wait_for2(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
-        except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
-            raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
-        async for msg in self.transport.read_messages():
+            await util.wait_for2(self.initialize(messages), LN_P2P_NETWORK_TIMEOUT)
+        except Exception as e:
+            if not self.initialized.done():  # see initialize()
+                self.initialized.set_exception(e)  # forward exc so waiters can fail too
+            if isinstance(e, (OSError, asyncio.TimeoutError, HandshakeFailed)):
+                raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
+            raise
+        async for msg in messages:
             await self._process_message(msg)
+
+    async def _read_messages(self) -> AsyncIterator[bytes]:
+        """Yields the messages sent by the remote and throttles processing speed"""
+        async for msg in self.transport.read_messages():
+            yield msg
             if self.DELAY_INC_MSG_PROCESSING_SLEEP:
                 # rate-limit message-processing a bit, to make it harder
                 # for a single peer to bog down the event loop / cpu:
@@ -1015,7 +1014,7 @@ class Peer(Logger, EventListener):
             raise Exception('This wallet cannot create new channels')
 
         # will raise if init fails
-        await util.wait_for2(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+        await self.initialized
         # trampoline is not yet in features
         if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
