@@ -102,7 +102,7 @@ Item {
 
             ImageCapture {
                 id: _ic
-                onImageAvailable: (requestId, frame) => qr.decodeFrameOneShot(frame)
+                onImageAvailable: (requestId, frame) => qr.decodeFrameOneShot(frame) // qmllint disable signal-handler-parameters
             }
 
             MediaDevices {
