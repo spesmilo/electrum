@@ -784,6 +784,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self.keystore.is_deterministic()
 
     def _normalize_label(self, text):
+        # FIXME: shall we escape html here?
         return text.replace("\n", " ") if text else None
 
     def _set_label(self, key: str, value: Optional[str]) -> bool:
