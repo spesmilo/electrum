@@ -499,10 +499,10 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
 
     def timer_start():
         nonlocal t0
-        t0 = time.time()
+        t0 = time.perf_counter()
 
     def timer_done():
-        t = time.time() - t0
+        t = time.perf_counter() - t0
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{func.__qualname__} {t:,.4f} sec")
 
