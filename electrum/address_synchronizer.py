@@ -524,6 +524,8 @@ class AddressSynchronizer(Logger, EventListener):
         hist_set = set(hist)
         for tx_hash, height in old_hist.items():
             if (tx_hash, height) not in hist_set:
+                if self._is_verified_tx_in_chain(tx_hash):
+                    continue  # only a reorg can undo an SPV proof, see undo_verifications
                 # make tx local
                 self.unverified_tx.pop(tx_hash, None)
                 self.unconfirmed_tx.pop(tx_hash, None)
@@ -709,7 +711,7 @@ class AddressSynchronizer(Logger, EventListener):
     def add_unverified_or_unconfirmed_tx(self, tx_hash: str, tx_height: int) -> None:
         assert tx_height >= TX_HEIGHT_UNCONF_PARENT, f"got {tx_height=} for {tx_hash=}"  # forbid local/future txs here
         if self.db.is_in_verified_tx(tx_hash):
-            if tx_height <= 0:
+            if tx_height <= 0 and not self._is_verified_tx_in_chain(tx_hash):
                 # tx was previously SPV-verified but now in mempool (probably reorg)
                 self.db.remove_verified_tx(tx_hash)
                 self.unconfirmed_tx[tx_hash] = tx_height
@@ -761,6 +763,23 @@ class AddressSynchronizer(Logger, EventListener):
         '''Returns a map from tx hash to transaction height'''
         return dict(self.unverified_tx)  # copy
 
+    def _is_verified_tx_in_chain(self, tx_hash: str) -> bool:
+        """Whether tx is SPV-verified in our current chain"""
+        info = self.db.get_verified_tx(tx_hash)
+        if info is None:
+            return False
+        if self.network is None:
+            return True
+        header = self.network.blockchain().read_header(info._height)
+        return header is None or hash_header(header) == info.header_hash  # None: e.g. below checkpoint
+
+    def _get_height_in_server_history(self, tx_hash: str) -> Optional[int]:
+        for addr in self.db.get_txi_addresses(tx_hash) + self.db.get_txo_addresses(tx_hash):
+            for txid, height in self.db.get_addr_history(addr):
+                if txid == tx_hash:
+                    return height
+        return None
+
     def undo_verifications(self, blockchain: Blockchain, above_height: int) -> Set[str]:
         '''Used by the verifier when a reorg has happened'''
         txs = set()
@@ -772,16 +791,10 @@ class AddressSynchronizer(Logger, EventListener):
                     header = blockchain.read_header(tx_height)
                     if not header or hash_header(header) != info.header_hash:
                         self.db.remove_verified_tx(tx_hash)
-                        # NOTE: we should add these txns to self.unverified_tx,
-                        # but with what height?
-                        # If on the new fork after the reorg, the txn is at the
-                        # same height, we will not get a status update for the
-                        # address. If the txn is not mined or at a diff height,
-                        # we should get a status update. Unless we put tx into
-                        # unverified_tx, it will turn into local. So we put it
-                        # into unverified_tx with the old height, and if we get
-                        # a status update, that will overwrite it.
-                        self.unverified_tx[tx_hash] = tx_height
+                        # use the height in the server history: the status update may have
+                        # come before the reorg headers, or not at all (same height on the new fork)
+                        server_height = self._get_height_in_server_history(tx_hash)
+                        self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height if server_height is None else server_height)
                         txs.add(tx_hash)
             if txs:
                 self.invalidate_cache()
