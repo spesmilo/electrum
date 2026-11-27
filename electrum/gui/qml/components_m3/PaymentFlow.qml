@@ -1,0 +1,679 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
+import QtQml
+
+import org.electrum 1.0
+
+// Payment flow of the Material 3 GUI: the non-visual part of the classic WalletMainView,
+// carried over verbatim from components/WalletMainView.qml @ 4f36c4489, lines 17-134 and 295-705
+// (the wallet menu, history list and Send/Receive buttons, lines 136-293, are not carried over).
+// It holds the payment identifier resolver, the invoice parser and the dialog factories; the root id stays
+// `mainView`, as in the classic file. Differences from the original are marked with `// M3:`.
+// M3: the strings keep the translation context of the classic file, qsTranslate('WalletMainView', ...)
+// instead of qsTr (which takes the context from the file name).
+// M3: the adaptation points open the Material 3 SendPage / InvoicePage instead of the classic SendDialog /
+// InvoiceDialog: openInvoice, openSendDialog, closeSendDialog, restartSendDialog, onValidationSuccess, plus
+// dispatch() (repeats: components/SendDialog.qml:40-85 @ 4f36c4489) and doPay() (the onDoPay handler of the
+// classic InvoiceDialog factory, WalletMainView.qml:508-536 @ 4f36c4489, one function for both invoice screens).
+// M3: SendPage.qml and InvoicePage.qml are loaded by URL when they are opened, not as types of this file: a defect
+// in one of them must not break this file and with it the root of the wallet; when a page or a dialog cannot be
+// opened, the error goes to the log and app.showScreenError() offers the classic interface (no classic screen is
+// opened in its place).
+Item {
+    id: mainView
+
+    // M3: read by the Material 3 pages (busy state, input)
+    property alias piResolver: piResolver
+    property alias invoiceParser: invoiceParser
+    property alias requestDetails: requestDetails
+
+    // M3: the Receive button of the classic WalletMainView (line 265-268) as a function
+    // M3: the Material 3 ReceiveRequestDialog (component receiveDetailsDialog below, loaded by URL); the
+    // handlers of the classic factory (onAccepted: the request parameters, then createRequest) are connected here
+    function openReceiveDetailsDialog() {
+        var dialog = receiveDetailsDialog ? receiveDetailsDialog.createObject(mainView) : null
+        if (!dialog) {
+            console.log('M3: ReceiveRequestDialog unavailable')
+            app.showScreenError()
+            return
+        }
+        dialog.accepted.connect(function() {
+            console.log('accepted')
+            _request_amount = dialog.amount
+            _request_description = dialog.description
+            _request_expiry = dialog.expiry
+            createRequest(dialog.isLightning, false)
+        })
+        dialog.rejected.connect(function() {
+            console.log('rejected')
+        })
+        dialog.open()
+    }
+
+    property var _sendDialog
+
+    property string _request_amount
+    property string _request_description
+    property string _request_expiry
+
+    // M3: the Material 3 InvoicePage (same contract as InvoiceDialog: invoiceAmountChanged, close()); returns the page,
+    // or null when it is not shown (yet): see _showPage
+    function openInvoice(key) {
+        invoice.key = key
+        var page = _showPage(Qt.resolvedUrl('InvoicePage.qml'), { flow: mainView, invoice: invoice })
+        return page && page.m3InvoicePage === true ? page : null
+    }
+
+    // M3: the Material 3 ReceivePage on the stack instead of the classic ReceiveDialog; the
+    // handler of the classic factory (onRequestPaid: close, then the details of the payment) is connected here:
+    // the details take the place of the page when it is on top, else they are pushed (the classic pushes them
+    // after closing its dialog). The page signals requestPaid only for a payment made while it is open, not for a
+    // request that was already paid when it was opened (ReceivePage._paid). Returns the page, or null when it is not
+    // shown (yet): see _showPage.
+    function openRequest(key) {
+        var page = _showPage(Qt.resolvedUrl('ReceivePage.qml'), { key: key }, function(page) {
+            if (page.m3ReceivePage !== true)
+                return
+            // once: the request reports Unconfirmed and then Paid (the classic dialog is gone after the first)
+            var handled = false
+            page.requestPaid.connect(function() {
+                if (handled)
+                    return
+                handled = true
+                var url = page.isLightning ? app.routes.lightningPaymentDetails : app.routes.txDetails
+                var props = page.isLightning ? {'key': page.key} : {'txid': page.getPaidTxid()}
+                if (app.stack.currentItem !== page) {
+                    app.pushPage(url, props)  // M3: a route (app.routes)
+                    return
+                }
+                var component = app.loadPage(url)
+                if (component)
+                    app.stackPage(component, props, page)
+            })
+        })
+        return page && page.m3ReceivePage === true ? page : null
+    }
+
+    // M3: loads a Material 3 dialog of this flow when this file is created; null (and the error in the log) when it
+    // cannot be loaded; the user is told when the dialog is to be opened. Pages are loaded by app.loadPage and put on
+    // the stack by app.stackPage (only ready components: a push or replace of a page that fails to load leaves
+    // StackView in a broken state).
+    function _loadPage(url) {
+        var component = Qt.createComponent(url)
+        if (component.status !== Component.Ready) {
+            console.log('M3: cannot load ' + url + ': ' + component.errorString())
+            return null
+        }
+        return component
+    }
+
+    // M3: the Material 3 SendPage on the stack instead of the classic SendDialog (nothing is opened when it cannot be:
+    // app.loadPage / app.stackPage tell the user)
+    function openSendDialog() {
+        var component = app.loadPage(Qt.resolvedUrl('SendPage.qml'))
+        if (!component)
+            return
+        app.stackPage(component, { flow: mainView }, null, function(page) {
+            if (page.m3SendPage === true)
+                _sendDialog = page
+        })
+    }
+
+    // M3: takes SendPage off the stack, only when it is on top (the page clears _sendDialog itself
+    // when it leaves the stack otherwise, e.g. by the back button while a recipient is resolved)
+    function closeSendDialog() {
+        if (_sendDialog) {
+            if (app.stack.currentItem === _sendDialog)
+                app.stack.pop()
+            else
+                console.log('M3: closeSendDialog: SendPage is not on top, left on the stack')
+            _sendDialog = null
+        }
+    }
+
+    function restartSendDialog() {
+        if (_sendDialog) {
+            _sendDialog.restart()
+        }
+    }
+
+    // M3: shows a page that follows the recipient input (InvoicePage, TxDetails): it replaces SendPage
+    // when SendPage is on top, otherwise it is pushed, so that a scan or a link never takes away the page
+    // the user is on. An InvoicePage on top that shows the same invoice object is replaced as well: it would
+    // only duplicate the new page (both bound to the one object). While a payment of that page is under way
+    // (InvoicePage.paymentUnderway()) it is not replaced, so that its "Payment sent." still comes: the new
+    // page is pushed, and the old one is marked superseded (it shows nothing and leaves the stack when the
+    // user comes back to it), so that it never offers the new invoice under the old input.
+    // A page that takes the place of the page on top is made before the replacement (app.makePage): when it cannot be
+    // created, the page on top stays as it is (SendPage with the input).
+    // Returns the new page and calls `done(page)` when given; null when the page could not be opened (the user is told,
+    // app.loadPage / app.makePage / app.stackPage) or when the stack was busy: then the page is shown after the current
+    // event and only `done` gets it (app.stackPage).
+    function _showPage(url, properties, done) {
+        var component = app.loadPage(url)
+        if (!component)
+            return null
+        var top = app.stack.currentItem
+        var sameInvoice = top && top.m3InvoicePage === true && properties.invoice && top.invoice === properties.invoice
+        var replace = top && (top === _sendDialog || (sameInvoice && !top.paymentUnderway()))
+        var content = replace ? app.makePage(component, properties) : component
+        if (!content)
+            return null
+        return app.stackPage(content, properties, replace ? top : null, function(page) {
+            if (top === _sendDialog)
+                _sendDialog = null
+            else if (sameInvoice && !replace)
+                top.superseded = true
+            if (done)
+                done(page)
+        })
+    }
+
+    // M3: opens the invoice screen for a validated invoice (onValidationSuccess)
+    // (when InvoicePage cannot be loaded or created, SendPage stays with the input, and the user is told: _showPage)
+    function _openParsedInvoice() {
+        _showPage(Qt.resolvedUrl('InvoicePage.qml'), {
+            flow: mainView,
+            invoice: invoiceParser,
+            payImmediately: invoiceParser.isLnurlPay
+        })
+    }
+
+    // M3: repeats components/SendDialog.qml:76-85 (dispatch) with its handlers onTxFound (:40-43) and
+    // onChannelBackupFound (:45-66) @ 4f36c4489. Called by SendPage and by a scan outside SendPage.
+    function dispatch(data) {
+        data = data.trim()
+        if (bitcoin.isRawTx(data)) {
+            _showPage(app.routes.txDetails, { rawtx: data })
+        } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+            if (!Daemon.currentWallet.isLightning) {
+                var errdialog = app.messageDialog.createObject(app, {
+                    title: qsTranslate('SendDialog', 'Cannot import Channel Backup, Lightning not enabled.')
+                })
+                errdialog.open()
+                return
+            }
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('SendDialog', 'Import Channel Backup?'),
+                yesno: true
+            })
+            dialog.accepted.connect(function() {
+                Daemon.currentWallet.importChannelBackup(data)
+                closeSendDialog()
+            })
+            dialog.rejected.connect(function() {
+                closeSendDialog()
+            })
+            dialog.open()
+        } else {
+            piResolver.recipient = data
+        }
+    }
+
+    // M3: the hint of the classic scanner (SendDialog.qml:103-105)
+    function scanHint() {
+        return Daemon.currentWallet.isLightning
+            ? qsTranslate('SendDialog', 'Scan an Invoice, an Address, an LNURL, a PSBT or a Channel Backup')
+            : qsTranslate('SendDialog', 'Scan an Invoice, an Address, an LNURL or a PSBT')
+    }
+
+    // M3: the classic camera (ScanDialog) for a recipient; the found text goes to onFound (if given, e.g. the
+    // field of SendPage) and to dispatch(). For SendPage and for a scan action outside it.
+    // onFound may belong to a page that left the stack while the camera was open (a link replaced it):
+    // its failure must not lose the scanned text.
+    function scanRecipient(onFound) {
+        var dialog = app.scanDialog.createObject(app, { hint: scanHint() })
+        dialog.onFoundText.connect(function(data) {
+            dialog.close()
+            if (onFound) {
+                try {
+                    onFound(data)
+                } catch (e) {
+                    console.log('M3: scanRecipient: the page of the scan is gone: ' + e)
+                }
+            }
+            dispatch(data)
+        })
+        dialog.open()
+        return dialog
+    }
+
+    // M3: the onDoPay handler of the classic InvoiceDialog factory (WalletMainView.qml:508-536 @ 4f36c4489),
+    // moved into one function for both invoice screens; `invoicedialog` is the InvoicePage or InvoiceDialog
+    // (payOnchain stores the txid in its broadcastTxid).
+    function doPay(invoicedialog, invoice) {
+        var lninvoiceButPayOnchain = false
+        if (invoice.invoiceType == Invoice.LightningInvoice && invoice.address) {
+            // ln invoice with fallback
+            var amountToSend = invoice.amountOverride.isEmpty
+                ? invoice.amount.satsInt
+                : invoice.amountOverride.satsInt
+            if (amountToSend > Daemon.currentWallet.lightningCanSend.satsInt) {
+                lninvoiceButPayOnchain = true
+            }
+        }
+        if (invoice.invoiceType == Invoice.OnchainInvoice) {
+            payOnchain(invoicedialog, invoice)
+        } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+            if (lninvoiceButPayOnchain) {
+                var dialog = app.messageDialog.createObject(mainView, {
+                    title: qsTranslate('WalletMainView', 'Insufficient balance to pay over Lightning. Pay on-chain instead?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    payOnchain(invoicedialog, invoice)
+                })
+                dialog.open()
+            } else {
+                console.log('About to pay lightning invoice')
+                invoice.payLightningInvoice()
+            }
+        }
+    }
+
+    function showExport(data, helptext) {
+        var dialog = exportTxDialog.createObject(app, {
+            text: data[0],
+            text_qr: data[1],
+            text_help: helptext,
+            text_warn: data[2]
+                ? ''
+                : [qsTranslate('WalletMainView', 'Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit.'),
+                   qsTranslate('WalletMainView', 'This might cause issues if signing offline.'),
+                   qsTranslate('WalletMainView', 'As a workaround, copy to clipboard or use the Share option instead.')].join(' '),
+            tx_label: data[3]
+        })
+        dialog.open()
+    }
+
+    function payOnchain(invoicedialog, invoice) {
+        var dialog = confirmPaymentDialog.createObject(mainView, {
+                address: invoice.address,
+                satoshis: invoice.amountOverride.isEmpty
+                    ? invoice.amount
+                    : invoice.amountOverride,
+                message: invoice.message
+        })
+        var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
+        dialog.accepted.connect(function() {
+            if (invoice.canSave)
+                if (!invoice.saveInvoice())
+                    return
+            if (!canComplete) {
+                if (Daemon.currentWallet.isWatchOnly) {
+                    dialog.finalizer.saveOrShow()
+                } else {
+                    dialog.finalizer.sign()
+                }
+            } else {
+                // store txid in invoicedialog so the dialog can detect broadcast success
+                invoicedialog.broadcastTxid = dialog.finalizer.finalizedTxid
+                dialog.finalizer.signAndSend()
+            }
+        })
+        dialog.open()
+    }
+
+    function createRequest(lightning, reuse_address) {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning, reuse_address)
+    }
+
+    function startSweep() {
+        var dialog = sweepDialog.createObject(app)
+        dialog.accepted.connect(function() {
+            var finalizerDialog = confirmSweepDialog.createObject(mainView, {
+                privateKeys: dialog.privateKeys,
+                message: qsTranslate('WalletMainView', 'Sweep transaction'),
+                showOptions: false,
+                amountLabelText: qsTranslate('WalletMainView', 'Total sweep amount'),
+                sendButtonText: Daemon.currentWallet.isWatchOnly
+                    ? qsTranslate('WalletMainView', 'Sweep...')
+                    : qsTranslate('WalletMainView', 'Sweep')
+            })
+            finalizerDialog.accepted.connect(function() {
+                if (Daemon.currentWallet.isWatchOnly) {
+                    var confirmdialog = app.messageDialog.createObject(mainView, {
+                        title: qsTranslate('WalletMainView', 'Confirm Sweep'),
+                        text: qsTranslate('WalletMainView', 'Current wallet is watch-only. You might not be able to spend from these addresses.\n\nAre you sure?'),
+                        yesno: true
+                    })
+                    confirmdialog.accepted.connect(function() {
+                        finalizerDialog.finalizer.send()
+                        close()
+                    })
+                    confirmdialog.open()
+                    return
+                }
+                console.log("Sending sweep transaction")
+                finalizerDialog.finalizer.send()
+            })
+            finalizerDialog.open()
+        })
+        dialog.open()
+    }
+
+    PIResolver {
+        id: piResolver
+        wallet: Daemon.currentWallet
+
+        onResolveError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.closed.connect(function() {
+                restartSendDialog()
+            })
+            dialog.open()
+        }
+
+        onInvoiceResolved: (pi) => {
+            invoiceParser.fromResolvedPaymentIdentifier(pi)
+        }
+
+        onRequestResolved: (pi) => {
+            requestDetails.fromResolvedPaymentIdentifier(pi)
+        }
+    }
+
+    RequestDetails {
+        id: requestDetails
+        wallet: Daemon.currentWallet
+        onNeedsLNURLUserInput: {
+            // M3: the dialog is loaded by URL and may be missing: SendPage is closed only once the dialog exists
+            var dialog = lnurlWithdrawDialog ? lnurlWithdrawDialog.createObject(app, {
+                requestDetails: requestDetails
+            }) : null
+            if (!dialog) {
+                console.log('M3: LnurlWithdrawDialog unavailable')
+                app.showScreenError()
+                return
+            }
+            closeSendDialog()
+            dialog.open()
+        }
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+    }
+
+    Invoice {
+        id: invoice
+        wallet: Daemon.currentWallet
+    }
+
+    InvoiceParser {
+        id: invoiceParser
+        wallet: Daemon.currentWallet
+        onValidationError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.closed.connect(function() {
+                restartSendDialog()
+            })
+            dialog.open()
+        }
+        onValidationWarning: (code, message) => {
+            if (code == 'no_channels') {
+                var dialog = app.messageDialog.createObject(app, {
+                    text: message
+                })
+                dialog.closed.connect(function() {
+                    restartSendDialog()
+                })
+                dialog.open()
+                // TODO: ask user to open a channel, if funds allow
+                // and maybe store invoice if expiry allows
+            }
+        }
+        onValidationSuccess: {
+            // M3: InvoicePage
+            _openParsedInvoice()
+        }
+        onInvoiceCreateError: (code, message) => {
+            var msg = qsTranslate('WalletMainView', 'Cannot save invoice') + ': ' + message
+            var dialog = app.messageDialog.createObject(app, {
+                text: msg
+            })
+            dialog.open()
+        }
+        onLnurlRetrieved: {
+            if (invoiceParser.invoiceType !== Invoice.Type.LNURLPayRequest) {
+                closeSendDialog()
+                console.log("Unsupported LNURL type:", invoiceParser.invoiceType)
+                return
+            }
+            // M3: the dialog is loaded by URL and may be missing: SendPage is closed only once the dialog exists
+            var dialog = lnurlPayDialog ? lnurlPayDialog.createObject(app, {
+                invoiceParser: invoiceParser
+            }) : null
+            if (!dialog) {
+                console.log('M3: LnurlPayDialog unavailable')
+                app.showScreenError()
+                return
+            }
+            closeSendDialog()
+            dialog.open()
+        }
+        onLnurlError: (code, message) => {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+    }
+
+    Bitcoin {
+        id: bitcoin
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            if (!Daemon.currentWallet) {  // wallet got deleted
+                app.stack.replaceRoot('Wallets.qml')
+                return
+            }
+            infobanner.hide() // start hidden when switching wallets
+        }
+    }
+
+    Connections {
+        target: app
+        function onPendingIntentChanged() {
+            if (app.pendingIntent) {
+                piResolver.recipient = app.pendingIntent
+                app.pendingIntent = ""
+            }
+        }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onRequestCreateSuccess(key) {
+            openRequest(key)
+        }
+        function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: error
+            })
+            dialog.open()
+        }
+        function onOtpRequested() {
+            console.log('OTP requested')
+            var dialog = otpDialog.createObject(mainView)
+            dialog.open()
+        }
+        function onBroadcastFailed(txid, code, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+        function onPaymentFailed(invoice_id, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message ? message : qsTranslate('WalletMainView', 'Payment failed')
+            })
+            dialog.open()
+        }
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTranslate('WalletMainView', 'Error'),
+                iconSource: Qt.resolvedUrl('../../icons/m3/warning.png'),
+                text: message
+            })
+            dialog.open()
+        }
+        function onBalanceChanged() {
+            // ln low reserve warning
+            if (Daemon.currentWallet.isLowReserve) {
+                var message = [
+                    qsTranslate('WalletMainView', 'You do not have enough on-chain funds to protect your Lightning channels.'),
+                    qsTranslate('WalletMainView', 'You should have at least %1 on-chain in order to be able to sweep channel outputs.').arg(Config.formatSats(Config.lnUtxoReserve) + ' ' + Config.baseUnit)
+                ].join(' ')
+                infobanner.show(message, function() {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: message + '\n\n' + qsTranslate('WalletMainView', 'Do you want to perform a swap?'),
+                        yesno: true
+                    })
+                    dialog.accepted.connect(function() {
+                        app.startSwap()
+                    })
+                    dialog.open()
+                })
+            } else {
+                infobanner.hide()
+            }
+        }
+    }
+
+    // M3: the Material 3 dialogs of receiving, loaded by URL (null and the error in the log when a file
+    // cannot be loaded: a defect in one of them must not break this file); each dialog sizes itself and
+    // destroys itself on close. The receive page is ReceivePage.qml, loaded by openRequest().
+    readonly property Component receiveDetailsDialog: _loadPage(Qt.resolvedUrl('ReceiveRequestDialog.qml'))
+
+    // M3: the Material 3 ConfirmTxDialog (same API as the classic one)
+    Component {
+        id: confirmPaymentDialog
+        ConfirmTxDialog {
+            id: _confirmPaymentDialog
+            title: qsTranslate('WalletMainView', 'Confirm Payment')
+            finalizer: TxFinalizer {
+                wallet: Daemon.currentWallet
+                canRbf: true
+                onFinished: (signed, saved, complete) => {
+                    if (!complete) {
+                        var msg
+                        if (wallet.isWatchOnly) {
+                            // tx created in watchonly wallet. Show QR for signer(s)
+                            if (wallet.isMultisig) {
+                                msg = qsTranslate('WalletMainView', 'Transaction created. Present this QR code to one of the co-cigners or signing devices')
+                            } else {
+                                msg = qsTranslate('WalletMainView', 'Transaction created. Present this QR code to the signing device')
+                            }
+                        } else {
+                            if (signed) {
+                                msg = qsTranslate('WalletMainView', 'Transaction created and partially signed by this wallet. Present this QR code to the next co-signer')
+                            } else {
+                                msg = qsTranslate('WalletMainView', 'Transaction created but not signed by this wallet yet. Sign the transaction and present this QR code to the next co-signer')
+                            }
+                        }
+                        showExport(getSerializedTx(), msg)
+                    }
+                    _confirmPaymentDialog.destroy()
+                }
+                onSignError: (message) => {
+                    var dialog = app.messageDialog.createObject(mainView, {
+                        title: qsTranslate('WalletMainView', 'Error'),
+                        text: [qsTranslate('WalletMainView', 'Could not sign tx'), message].join('\n\n'),
+                        iconSource: Qt.resolvedUrl('../../icons/m3/warning.png')  // M3: resolved here, not in the dialog
+                    })
+                    dialog.open()
+                }
+            }
+
+            // TODO: lingering confirmPaymentDialogs can raise exceptions in
+            // the child finalizer when currentWallet disappears, but we need
+            // it long enough for the finalizer to finish..
+            // onClosed: destroy()
+        }
+    }
+
+    // M3: the Material 3 ConfirmTxDialog (same API as the classic one)
+    Component {
+        id: confirmSweepDialog
+        ConfirmTxDialog {
+            id: _confirmSweepDialog
+
+            property string privateKeys
+            title: qsTranslate('WalletMainView', 'Confirm Sweep')
+            satoshis: MAX
+            finalizer: SweepFinalizer {
+                wallet: Daemon.currentWallet
+                canRbf: true
+                privateKeys: _confirmSweepDialog.privateKeys
+            }
+        }
+    }
+
+    readonly property Component lnurlPayDialog: _loadPage(Qt.resolvedUrl('LnurlPayDialog.qml'))
+
+    readonly property Component lnurlWithdrawDialog: _loadPage(Qt.resolvedUrl('LnurlWithdrawDialog.qml'))
+
+    Component {
+        id: otpDialog
+        OtpDialog {
+            onClosed: destroy()
+        }
+    }
+
+    // M3: the Material 3 ExportTxDialog (same API as the classic one)
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: sweepDialog
+        SweepDialog {
+            onClosed: destroy()
+        }
+    }
+
+    // M3: a link that started the app is taken once the root is on the stack: an invoice opens as a page,
+    // and StackView refuses a push while it is still completing the push of the root that holds this flow
+    function _takeStartupIntent() {
+        if (app.pendingIntent) {
+            piResolver.recipient = app.pendingIntent
+            app.pendingIntent = ""
+        }
+    }
+
+    Component.onCompleted: {
+        console.log("WalletMainView completed: ", Daemon.currentWallet.name)
+        Qt.callLater(_takeStartupIntent)
+    }
+}

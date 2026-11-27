@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Set, List, Optional, Callable
 
 from PyQt6.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QT_VERSION_STR, PYQT_VERSION_STR,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
-from PyQt6.QtGui import QGuiApplication
+from PyQt6.QtGui import QGuiApplication, QColor
 from PyQt6.QtQml import qmlRegisterType, QQmlApplicationEngine
 
 import electrum
@@ -68,6 +68,79 @@ if platform.is_android():
 notification = None
 
 
+# System bars of Android without edge-to-edge (below Android 15), see QEAppController.setSystemBarColors.
+def _color_to_jint(color: str) -> int:
+    """A color as text (QML color: '#rrggbb' or '#aarrggbb') -> the ARGB int of android.graphics.Color
+    (a Java int is signed: opaque colors are negative)."""
+    argb = QColor(color).rgba()
+    return argb - (1 << 32) if argb >= (1 << 31) else argb
+
+
+def _with_flags(flags: int, mask: int, on: bool) -> int:
+    """`flags` with the bits of `mask` set (on) or cleared (off), the others kept."""
+    return (flags | mask) if on else (flags & ~mask)
+
+
+# _android_paint_system_bars and _android_restore_system_bars run on the Android UI thread
+# (android.runnable.run_on_ui_thread); the helpers below are called from them. They are module level functions:
+# run_on_ui_thread keeps one Runnable per function object for the life of the process.
+def _android_set_light_bars(window, light: bool) -> None:
+    """Dark icons on both bars (light bars) or light icons, as Qt writes them (QtDisplayManager.setStatusBarColorHint,
+    setNavigationBarColorHint)."""
+    if systemSdkVersion >= 30:
+        controller = window.getInsetsController()
+        if controller is not None:
+            jWindowInsetsController = autoclass('android.view.WindowInsetsController')
+            mask = (jWindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | jWindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+            controller.setSystemBarsAppearance(mask if light else 0, mask)
+    else:
+        jView = autoclass('android.view.View')
+        mask = jView.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | jView.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        decor_view = window.getDecorView()
+        decor_view.setSystemUiVisibility(_with_flags(decor_view.getSystemUiVisibility(), mask, light))
+
+
+def _android_window_for_bar_colors():
+    jLayoutParams = autoclass('android.view.WindowManager$LayoutParams')
+    window = jpythonActivity.getWindow()
+    window.clearFlags(jLayoutParams.FLAG_TRANSLUCENT_STATUS | jLayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+    window.addFlags(jLayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+    return window
+
+
+def _android_paint_system_bars(status_bar: int, navigation_bar: int, light_bars: bool) -> None:
+    window = _android_window_for_bar_colors()
+    window.setStatusBarColor(status_bar)
+    window.setNavigationBarColor(navigation_bar)
+    _android_set_light_bars(window, light_bars)
+
+
+def _android_theme_color(attr: int) -> int:
+    # as QtDisplayManager.resolveColorAttribute
+    jTypedValue = autoclass('android.util.TypedValue')
+    value = jTypedValue()
+    theme = jpythonActivity.getTheme()
+    if theme.resolveAttribute(attr, value, True):
+        if value.resourceId != 0:
+            return jpythonActivity.getResources().getColor(value.resourceId, theme)
+        if jTypedValue.TYPE_FIRST_COLOR_INT <= value.type <= jTypedValue.TYPE_LAST_COLOR_INT:
+            return value.data
+    return -1
+
+
+def _android_restore_system_bars() -> None:
+    """The bars as Qt sets them at start (QtActivityDelegateBase.handleUiModeChange): the colors of the activity
+    theme, the icons by the night mode of the system."""
+    jAttr = autoclass('android.R$attr')
+    jConfiguration = autoclass('android.content.res.Configuration')
+    window = _android_window_for_bar_colors()
+    window.setStatusBarColor(_android_theme_color(jAttr.statusBarColor))
+    window.setNavigationBarColor(_android_theme_color(jAttr.navigationBarColor))
+    night = jpythonActivity.getResources().getConfiguration().uiMode & jConfiguration.UI_MODE_NIGHT_MASK
+    _android_set_light_bars(window, night == jConfiguration.UI_MODE_NIGHT_NO)
+
+
 class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
     userNotify = pyqtSignal(str, str)
@@ -93,6 +166,8 @@ class QEAppController(BaseCrashReporter, QObject):
         self._app_started = False
         self._intent = ''
         self._secureWindow = False
+        self._system_bars_painted = False  # setSystemBarColors has changed the system bars
+        self._system_bars_disabled = False  # set by resetSystemBarColors: no more setSystemBarColors
 
         # map of permissions and grant status _after_ asking user
         self._permissions = {}  # type: dict[str, bool]
@@ -467,6 +542,31 @@ class QEAppController(BaseCrashReporter, QObject):
             return False
         return bool(systemSdkVersion >= 35)
 
+    @pyqtSlot(str, str, bool)
+    def setSystemBarColors(self, status_bar: str, navigation_bar: str, light_bars: bool) -> None:
+        """Android without edge-to-edge (below Android 15) only, where the page is not drawn under the system bars
+        and the system draws them in the color of the activity theme: paints the status bar and the navigation bar
+        with the given colors, with dark icons on them (light_bars) or light icons. Used by the Material 3 GUI.
+        Qt paints the bars back in the theme color whenever the uiMode of the configuration changes (night mode,
+        car or desk mode), so the caller paints again after a night mode change. Applied later, on the Android UI
+        thread."""
+        if not self.isAndroid() or self.enforcesEdgeToEdge() or self._system_bars_disabled:
+            return
+        self._system_bars_painted = True
+        from android.runnable import run_on_ui_thread
+        run_on_ui_thread(_android_paint_system_bars)(
+            _color_to_jint(status_bar), _color_to_jint(navigation_bar), bool(light_bars))
+
+    def resetSystemBarColors(self) -> None:
+        """Ends setSystemBarColors for the rest of the process (later calls do nothing), and gives the bars it
+        painted back to the theme, as Qt sets them at start. For the switch to the classic GUI when the Material 3
+        one failed to load: objects of the failed GUI may still call setSystemBarColors."""
+        self._system_bars_disabled = True
+        if not self._system_bars_painted:
+            return
+        from android.runnable import run_on_ui_thread
+        run_on_ui_thread(_android_restore_system_bars)()
+
     @profiler(min_threshold=0.02)
     def _getSystemBarHeight(self, bar_type: str) -> int:
         if not self.enforcesEdgeToEdge():
@@ -617,6 +717,8 @@ class ElectrumQmlApplication(QGuiApplication):
         self.engine.objectCreated.disconnect(self.objectCreated)
         if object is None:
             self._valid = False
+            # the bars painted by a failed Material 3 GUI go back to the theme before the classic GUI is loaded
+            self.appController.resetSystemBarColors()
         else:
             self.appController.startup_finished()
 
