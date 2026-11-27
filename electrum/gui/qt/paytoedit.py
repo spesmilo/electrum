@@ -252,6 +252,10 @@ class PayToEdit(QWidget, Logger, GenericInputHandler, QtEventListener):
 
     def setText(self, text: str) -> None:
         if self._text != text:
+            # remove unneeded whitespaces
+            lines = text.split('\n')
+            lines = [' '.join(l.split()) for l in lines]
+            text = '\n'.join(lines)
             self.line_edit.setText(text)
             self.text_edit.setText(text)
 

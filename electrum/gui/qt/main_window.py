@@ -1243,7 +1243,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)
-        return label + '  <' + key + '>' if _type == 'address' else key
+        return PaymentIdentifier.format_payto(label, key) if _type == 'address' else key
 
     def update_completions(self):
         l = [self.get_contact_payto(key) for key in self.contacts.keys()]
