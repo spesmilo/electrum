@@ -10,9 +10,9 @@ from electrum_ecc.util import bip340_tagged_hash
 from electrum import script_interpreter as si
 from electrum.script_interpreter import (
     ScriptError, ScriptFlags, SigVersion, PrecomputedTransactionData, TransactionSignatureChecker,
-    VerificationBudget, ScriptVerificationError, ResourceLimitExceeded, MissingSpentOutputs,
+    ScriptVerificationError, MissingSpentOutputs,
     verify_script, verify_input,
-    CONSENSUS_FLAGS, STANDARD_FLAGS,
+    CONSENSUS_FLAGS, STANDARD_FLAGS, MEMPOOL_FLAGS,
 )
 from electrum.bitcoin import (
     opcodes, construct_witness, add_number_to_script, script_num_to_bytes, taproot_output_script,
@@ -547,19 +547,19 @@ class TestScriptInterpreterCoreVectors(ElectrumTestCase):
                 self.assertEqual(inp["intermediary"]["sigHash"], bip340_tagged_hash(b"TapSighash", sig_msg).hex())
                 # the fully signed key-path spend verifies...
                 self.assertEqual(inp["expected"]["witness"], [w.hex() for w in signed_tx.inputs()[txin_index].witness_elements()])
-                verify_input(signed_txdata, txin_index)
-                verify_input(signed_txdata, txin_index, flags=STANDARD_FLAGS)
+                verify_input(signed_txdata, txin_index, flags=CONSENSUS_FLAGS)
+                verify_input(signed_txdata, txin_index, flags=MEMPOOL_FLAGS)
                 # ... but cannot be verified if the output spent by another input is unknown: its signature commits to it
                 partial_utxos = [utxo if i == txin_index else None for i, utxo in enumerate(utxos)]
                 with self.assertRaises(MissingSpentOutputs):
-                    verify_input(PrecomputedTransactionData(signed_tx, partial_utxos), txin_index)
+                    verify_input(PrecomputedTransactionData(signed_tx, partial_utxos), txin_index, flags=CONSENSUS_FLAGS)
                 # ... and stops verifying if one bit of its signature is flipped
                 bad_tx = Transaction(vec["auxiliary"]["fullySignedTx"])
                 sig = bytearray(bfh(inp["expected"]["witness"][0]))
                 sig[n_inputs % 64] ^= 1 << (n_inputs % 8)
                 bad_tx.inputs()[txin_index].witness = construct_witness([bytes(sig)])
                 with self.assertRaises(ScriptVerificationError) as ctx:
-                    verify_input(PrecomputedTransactionData(bad_tx, utxos), txin_index)
+                    verify_input(PrecomputedTransactionData(bad_tx, utxos), txin_index, flags=CONSENSUS_FLAGS)
                 self.assertEqual(ScriptError.SCHNORR_SIG, ctx.exception.error)
                 self.assertEqual(txin_index, ctx.exception.txin_index)
                 # Electrum's signature (it signs with the sighash type given in the vector)
@@ -568,7 +568,7 @@ class TestScriptInterpreterCoreVectors(ElectrumTestCase):
                 ptxin.tap_merkle_root = bfh(inp["given"]["merkleRoot"]) if inp["given"]["merkleRoot"] else None
                 sig = psbt.sign_txin(txin_index, bfh(inp["given"]["internalPrivkey"]))
                 bad_tx.inputs()[txin_index].witness = construct_witness([sig])
-                verify_input(PrecomputedTransactionData(bad_tx, utxos), txin_index)
+                verify_input(PrecomputedTransactionData(bad_tx, utxos), txin_index, flags=CONSENSUS_FLAGS)
         self.assertEqual(7, n_inputs)
 
 
@@ -793,20 +793,21 @@ class TestVerifyInput(ElectrumTestCase):
             tx = Transaction(spending_raw)
             spent = _spent_outputs([Transaction(funding_raw)], tx)
             txdata = PrecomputedTransactionData(tx, spent)
-            verify_input(txdata, 0)
-            verify_input(txdata, 0, flags=STANDARD_FLAGS)
+            verify_input(txdata, 0, flags=CONSENSUS_FLAGS)
+            verify_input(txdata, 0, flags=MEMPOOL_FLAGS)
             with self.assertRaises(ValueError, msg=name):
-                verify_input(PrecomputedTransactionData(tx, [None]), 0)  # the output spent by the input itself is needed
+                # the output spent by the input itself is needed
+                verify_input(PrecomputedTransactionData(tx, [None]), 0, flags=CONSENSUS_FLAGS)
             # a different amount or scriptPubKey breaks it (except for the legacy sighash, which commits to neither)
             if tx.inputs()[0].witness_elements():
                 other_amount = TxOutput(scriptpubkey=spent[0].scriptpubkey, value=spent[0].value + 1)
                 with self.assertRaises(ScriptVerificationError, msg=name):
-                    verify_input(PrecomputedTransactionData(tx, [other_amount]), 0)
+                    verify_input(PrecomputedTransactionData(tx, [other_amount]), 0, flags=CONSENSUS_FLAGS)
             spk = bytearray(spent[0].scriptpubkey)
             spk[len(spk) // 2] ^= 1  # inside the pubkey or hash
             other_script = TxOutput(scriptpubkey=bytes(spk), value=spent[0].value)
             with self.assertRaises(ScriptVerificationError, msg=name):
-                verify_input(PrecomputedTransactionData(tx, [other_script]), 0)
+                verify_input(PrecomputedTransactionData(tx, [other_script]), 0, flags=CONSENSUS_FLAGS)
 
     def test_electrum_bip143_sighash_types(self):
         # signatures made by Electrum in test_transaction.TestSighashBIP143 (= the BIP143 test vectors)
@@ -829,45 +830,10 @@ class TestVerifyInput(ElectrumTestCase):
             with self.assertRaises(MissingSpentOutputs):  # the BIP143 sighash commits to the amount
                 TransactionSignatureChecker(txdata, 0, None).CheckECDSASignature(bfh(sig), pubkey, T.txin.witness_script, SigVersion.WITNESS_V0)
 
-    def _multisig_txdata(self) -> PrecomputedTransactionData:
-        funding_raw, spending_raw = ELECTRUM_SIGNED_TXS["p2wsh_multisig_2of3"]
-        tx = Transaction(spending_raw)
-        return PrecomputedTransactionData(tx, _spent_outputs([Transaction(funding_raw)], tx))
-
     def test_undecodable_tx(self):
         """Electrum deserializes lazily: a malformed serialization raises SerializationError (documented)."""
         with self.assertRaises(SerializationError):
             PrecomputedTransactionData(Transaction('0200000001'))
-
-    def test_verification_budget(self):
-        txdata = self._multisig_txdata()  # 2-of-3, signed by keys 1 and 3: 3 signature checks
-        budget = VerificationBudget(max_sig_checks=3, max_sighash_bytes=10_000)
-        verify_input(txdata, 0, budget=budget)
-        self.assertEqual(3, budget.sig_checks)
-        self.assertGreater(budget.sighash_bytes, 0)
-        with self.assertRaises(ResourceLimitExceeded):
-            verify_input(txdata, 0, budget=VerificationBudget(max_sig_checks=2, max_sighash_bytes=10_000))
-        with self.assertRaises(ResourceLimitExceeded):
-            verify_input(txdata, 0, budget=VerificationBudget(max_sig_checks=10, max_sighash_bytes=100))
-        # legacy sighashes are charged per signature check, with the size of the whole tx
-        funding_raw, spending_raw = ELECTRUM_SIGNED_TXS["uncompressed_p2pkh"]
-        tx = Transaction(spending_raw)
-        txdata = PrecomputedTransactionData(tx, _spent_outputs([Transaction(funding_raw)], tx))
-        budget = VerificationBudget(max_sig_checks=1, max_sighash_bytes=10_000)
-        verify_input(txdata, 0, budget=budget)
-        self.assertGreater(budget.sighash_bytes, len(tx.serialize_as_bytes()) - len(tx.inputs()[0].script_sig))
-        # a budget is cumulative
-        with self.assertRaises(ResourceLimitExceeded):
-            verify_input(txdata, 0, budget=budget)
-
-    def test_find_and_delete_is_charged(self):
-        # <sig> <pubkey> | <sig> OP_DROP OP_CHECKSIG: FindAndDelete has to walk the script
-        sig = bytes(70)
-        script_pubkey = si._push_data(sig) + b'\x75\xac\x51'
-        credit, spend = build_crediting_and_spending_tx(script_pubkey, si._push_data(sig) + si._push_data(bytes(33)), [], 0)
-        budget = VerificationBudget(max_sig_checks=10, max_sighash_bytes=10**6)
-        verify_input(PrecomputedTransactionData(spend, credit.outputs()), 0, flags=ScriptFlags.P2SH, budget=budget)
-        self.assertGreaterEqual(budget.sighash_bytes, len(script_pubkey) * VerificationBudget.SCRIPT_WALK_COST)
 
     def test_garbage_never_raises(self):
         """Random scripts, witnesses and flags only ever produce a ScriptError."""
@@ -895,6 +861,6 @@ class TestVerifyInput(ElectrumTestCase):
             credit, spend = build_crediting_and_spending_tx(spk, garbage(12), witness, rng.randrange(2**40))
             txdata = PrecomputedTransactionData(spend, credit.outputs())
             try:
-                verify_input(txdata, 0, flags=flags, budget=VerificationBudget(max_sig_checks=100, max_sighash_bytes=10**7))
-            except (ScriptVerificationError, ResourceLimitExceeded):
+                verify_input(txdata, 0, flags=flags)
+            except ScriptVerificationError:
                 pass

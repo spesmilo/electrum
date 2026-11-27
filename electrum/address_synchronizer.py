@@ -40,8 +40,7 @@ from .transaction import (
     Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction, tx_from_any,
 )
 from .script_interpreter import (
-    PrecomputedTransactionData, VerificationBudget, ScriptVerificationError, ResourceLimitExceeded,
-    MissingSpentOutputs, verify_input,
+    PrecomputedTransactionData, ScriptVerificationError, MissingSpentOutputs, MEMPOOL_FLAGS, verify_input,
 )
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -60,13 +59,6 @@ TX_HEIGHT_FUTURE = -3
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
-
-# Bounds the work of verifying the inputs of a tx that spend our coins: their scriptPubKeys are ours, but
-# the scriptSig of a legacy input is chosen by whoever made the tx. The most demanding standard txs need
-# 22,332 signature checks, or 24 MB of sighash bytes (470 P2PKH inputs).
-# At the limit, verification takes about a second.
-MAX_SIG_CHECKS_PER_TX = 30_000
-MAX_SIGHASH_BYTES_PER_TX = 100_000_000
 
 TX_TIMESTAMP_INF = 999_999_999_999
 TX_HEIGHT_INF = 10 ** 9
@@ -445,12 +437,12 @@ class AddressSynchronizer(Logger, EventListener):
         self._verify_txin_scripts(tx, prevouts=our_prevouts - linked_prevouts, prev_txs=None)
 
     def _verify_txin_scripts(self, tx: Transaction, *, prevouts: Set[str], prev_txs: Optional[dict[str, Transaction]]) -> None:
-        """Verifies that the txins of tx that spend prevouts are valid, under consensus rules, against their parent txs.
+        """Verifies that the txins of tx that spend prevouts are valid, under mempool policy, against their parent txs.
         Parent transactions not yet stored in the db can be passed through prev_txs.
         Ignores mined, partial and unsigned transactions.
         Raises InvalidTxSignature if a txin is not valid.
         Raises UnverifiableTxSignature if that could not be determined: a taproot signature commits to all
-        spent outputs, and one is missing; the budget is exhausted; the interpreter fails.
+        spent outputs, and one is missing; the interpreter fails.
         """
         if not prevouts or not tx.is_complete():
             return
@@ -462,14 +454,13 @@ class AddressSynchronizer(Logger, EventListener):
         spent_outputs = [self.get_spent_output(txin, prev_tx=prev_txs.get(txin.prevout.txid.hex())) for txin in tx.inputs()]
         try:
             txdata = PrecomputedTransactionData(tx, spent_outputs)
-            budget = VerificationBudget(max_sig_checks=MAX_SIG_CHECKS_PER_TX, max_sighash_bytes=MAX_SIGHASH_BYTES_PER_TX)
             for txin_idx, txin in enumerate(tx.inputs()):
                 if txin.prevout.to_str() in prevouts:
-                    verify_input(txdata, txin_idx, budget=budget)
+                    verify_input(txdata, txin_idx, flags=MEMPOOL_FLAGS)
         except ScriptVerificationError as e:
             self.logger.info(f"tx {tx.txid()}: {e!r}")
             raise InvalidTxSignature() from e
-        except (MissingSpentOutputs, ResourceLimitExceeded) as e:
+        except MissingSpentOutputs as e:
             self.logger.info(f"tx {tx.txid()}: {e!r}")
             raise UnverifiableTxSignature() from e
         except Exception as e:

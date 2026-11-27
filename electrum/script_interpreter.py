@@ -6,7 +6,8 @@
 #
 # Bitcoin script interpreter. Its only purpose is to check whether the inputs of a
 # transaction are validly signed, i.e. whether every scriptSig/witness satisfies the
-# scriptPubKey of the output it spends, under Bitcoin consensus rules.
+# scriptPubKey of the output it spends, under Bitcoin consensus rules, or under the stricter
+# rules that Bitcoin Core applies to unconfirmed transactions.
 #
 # This is a port of Bitcoin Core's script interpreter (MIT licensed): src/script/interpreter.cpp,
 # src/script/script.cpp and src/pubkey.cpp, as of Bitcoin Core commit
@@ -15,9 +16,8 @@
 # Function names and control flow follow Core, so that the two can be compared side by side.
 # Comments starting with "Core:" name the Core counterpart, or explain where the Python code
 # works differently.
-# VerificationBudget limits are Electrum specific. They limit the work spent on untrusted data.
-# When it runs out, ResourceLimitExceeded is raised, this doesn't neccessarily mean the TX is invalid.
-# Neither does MissingSpentOutputs, which is raised where Core handles missing data (MissingDataBehavior).
+# MissingSpentOutputs is raised where Core handles missing data (MissingDataBehavior), this doesn't
+# necessarily mean the TX is invalid.
 
 import enum
 import hashlib
@@ -636,15 +636,13 @@ def CheckPubKeyEncoding(pubkey: bytes, flags: int, sigversion: SigVersion) -> Sc
     return _OK
 
 
-def FindAndDelete(script: bytes, b: bytes, *, budget: 'VerificationBudget' = None) -> Tuple[bytes, int]:
+def FindAndDelete(script: bytes, b: bytes) -> Tuple[bytes, int]:
     """Returns (new_script, number_of_matches)."""
     if not b:
         return script, 0
     if b not in script:
         # Core: shortcut, a match at an op boundary is impossible.
         return script, 0
-    if budget is not None:
-        budget.charge_script_walk(len(script))
     n_found = 0
     result = []
     pc = pc2 = 0
@@ -748,7 +746,7 @@ def EvalChecksigPreTapscript(
     script_code = script[pbegincodehash:]
     # Drop the signature in pre-segwit scripts but not segwit scripts
     if sigversion == SigVersion.BASE:
-        script_code, found = FindAndDelete(script_code, _push_data(sig), budget=checker.budget)
+        script_code, found = FindAndDelete(script_code, _push_data(sig))
         if found > 0 and flags & SCRIPT_VERIFY_CONST_SCRIPTCODE:
             return ScriptError.SIG_FINDANDDELETE, False
     err = CheckSignatureEncoding(sig, flags)
@@ -1331,7 +1329,7 @@ def EvalScript(
                     for k in range(n_sigs_count):
                         vch_sig = stack[-isig - k]
                         if sigversion == SigVersion.BASE:
-                            script_code, found = FindAndDelete(script_code, _push_data(vch_sig), budget=checker.budget)
+                            script_code, found = FindAndDelete(script_code, _push_data(vch_sig))
                             if found > 0 and flags & SCRIPT_VERIFY_CONST_SCRIPTCODE:
                                 return ScriptError.SIG_FINDANDDELETE
 
@@ -1506,7 +1504,6 @@ def SignatureHash(
     amount: int,
     sigversion: SigVersion,
     sighash_cache: SigHashCache = None,
-    budget: 'VerificationBudget' = None,
 ) -> bytes:
     """Core: SignatureHash. Returns the 32-byte message, in uint256 byte order."""
     assert n_in < len(txdata.vin)
@@ -1528,8 +1525,6 @@ def SignatureHash(
         if ss is not None:
             # Add sighash type and hash.
             ss.update(hash_type_ser)
-            if budget is not None:
-                budget.charge_sighash_bytes(4 + 32)
             return sha256(ss.digest())
 
     ss = hashlib.sha256()
@@ -1558,14 +1553,9 @@ def SignatureHash(
             hash_outputs,
             struct.pack('<I', txdata.locktime),
         ))
-        n_bytes = len(preimage)
-        if budget is not None:
-            budget.charge_sighash_bytes(n_bytes + 4 + 32)
         ss.update(preimage)
     else:
         # Core: CTransactionSignatureSerializer
-        if budget is not None:
-            budget.charge_script_walk(len(script_code))
         script_code_ser = SerializeScriptCode(script_code)
         this_input = txin.prevout + script_code_ser + struct.pack('<I', txin.sequence)
         parts = [struct.pack('<I', txdata.version)]
@@ -1585,8 +1575,6 @@ def SignatureHash(
         else:
             parts.append(txdata.legacy_outputs)
         parts.append(struct.pack('<I', txdata.locktime))
-        if budget is not None:
-            budget.charge_sighash_bytes(sum(len(p) for p in parts) + 4 + 32)
         for p in parts:
             ss.update(p)
 
@@ -1679,8 +1667,6 @@ def SignatureHashSchnorr(
 
 
 class BaseSignatureChecker:
-    budget = None  # type: Optional[VerificationBudget]
-
     def CheckECDSASignature(self, sig: bytes, pubkey: bytes, script_code: bytes, sigversion: SigVersion) -> bool:
         return False
 
@@ -1707,19 +1693,12 @@ _PUBKEY_LEN_BY_HEADER = {2: 33, 3: 33, 4: 65, 6: 65, 7: 65}  # Core: CPubKey::Ge
 class TransactionSignatureChecker(BaseSignatureChecker):
     """Core: GenericTransactionSignatureChecker. Raises MissingSpentOutputs where Core calls HandleMissingData."""
 
-    def __init__(
-        self,
-        txdata: 'PrecomputedTransactionData',
-        txin_index: int,
-        amount: Optional[int], *,
-        budget: 'VerificationBudget' = None,
-    ):
+    def __init__(self, txdata: 'PrecomputedTransactionData', txin_index: int, amount: Optional[int]):
         if not (0 <= txin_index < len(txdata.vin)):
             raise ValueError(f"txin_index {txin_index} out of range")
         self.txdata = txdata
         self.n_in = txin_index
         self.amount = amount  # None or negative: missing
-        self.budget = budget
         self.sighash_cache = SigHashCache()
 
     def VerifyECDSASignature(self, sig: bytes, pubkey: bytes, sighash: bytes) -> bool:
@@ -1757,9 +1736,7 @@ class TransactionSignatureChecker(BaseSignatureChecker):
             # Core: HandleMissingData
             raise MissingSpentOutputs(f"input {self.n_in}: the BIP143 sighash needs the amount of the spent output")
         sighash = SignatureHash(script_code, self.txdata, self.n_in, hash_type, self.amount or 0, sigversion,
-                                 self.sighash_cache, self.budget)
-        if self.budget is not None:
-            self.budget.charge_sig_check()
+                                self.sighash_cache)
         return self.VerifyECDSASignature(sig, pubkey, sighash)
 
     def CheckSchnorrSignature(
@@ -1787,8 +1764,6 @@ class TransactionSignatureChecker(BaseSignatureChecker):
         sighash = SignatureHashSchnorr(execdata, self.txdata, self.n_in, hash_type, sigversion)
         if sighash is None:
             return ScriptError.SCHNORR_SIG_HASHTYPE
-        if self.budget is not None:
-            self.budget.charge_sig_check()
         if not self.VerifySchnorrSignature(sig, pubkey, sighash):
             return ScriptError.SCHNORR_SIG
         return _OK
@@ -1916,12 +1891,7 @@ def CheckTapTweak(output_key: bytes, internal_key: bytes, merkle_root: bytes, pa
     return q == output_key and q_parity == parity
 
 
-def VerifyTaprootCommitment(
-    control: bytes,
-    program: bytes,
-    tapleaf_hash: bytes,
-    budget: 'VerificationBudget' = None,
-) -> bool:
+def VerifyTaprootCommitment(control: bytes, program: bytes, tapleaf_hash: bytes) -> bool:
     assert len(control) >= TAPROOT_CONTROL_BASE_SIZE
     assert len(program) >= 32
     # The internal pubkey (x-only, so no Y coordinate parity).
@@ -1931,8 +1901,6 @@ def VerifyTaprootCommitment(
     # Compute the Merkle root from the leaf and the provided path.
     merkle_root = ComputeTaprootMerkleRoot(control, tapleaf_hash)
     # Verify that the output pubkey matches the tweaked internal pubkey, after correcting for parity.
-    if budget is not None:
-        budget.charge_sig_check()
     return CheckTapTweak(q, p, merkle_root, control[0] & 1)
 
 
@@ -1988,7 +1956,7 @@ def VerifyWitnessProgram(
                     or (len(control) - TAPROOT_CONTROL_BASE_SIZE) % TAPROOT_CONTROL_NODE_SIZE != 0):
                 return ScriptError.TAPROOT_WRONG_CONTROL_SIZE
             execdata.tapleaf_hash = ComputeTapleafHash(control[0] & TAPROOT_LEAF_MASK, script)
-            if not VerifyTaprootCommitment(control, program, execdata.tapleaf_hash, checker.budget):
+            if not VerifyTaprootCommitment(control, program, execdata.tapleaf_hash):
                 return ScriptError.WITNESS_PROGRAM_MISMATCH
             if (control[0] & TAPROOT_LEAF_MASK) == TAPROOT_LEAF_TAPSCRIPT:
                 # Tapscript (leaf version 0xc0)
@@ -2129,50 +2097,10 @@ class ScriptVerificationError(Exception):
         self.txin_index = txin_index
 
 
-class ResourceLimitExceeded(Exception):
-    """The VerificationBudget was exhausted. This is NOT proof that the tx is invalid."""
-
-
 class MissingSpentOutputs(Exception):
     """A signature hash commits to an output spent by the tx that is not known.
     This is NOT proof that the tx is invalid.
     """
-
-
-class VerificationBudget:
-    """Bounds the work done by verify_input on untrusted data.
-
-    max_sig_checks: number of ECDSA/Schnorr signature verifications (plus taproot
-      commitment checks, which cost about the same).
-    max_sighash_bytes: number of bytes hashed for legacy and BIP143 signature hashes.
-      Legacy sighashes also need Python-level walks over the scriptCode (OP_CODESEPARATOR
-      removal, FindAndDelete); these are charged at SCRIPT_WALK_COST bytes per script byte.
-
-    Opcode execution is not metered. Its cost is linear in the size of the tx and its spent
-    scriptPubKeys, so callers bound it by bounding those sizes.
-
-    A budget can be shared between several calls; its counters keep accumulating.
-    """
-    SCRIPT_WALK_COST = 64
-
-    def __init__(self, *, max_sig_checks: int, max_sighash_bytes: int):
-        self.max_sig_checks = max_sig_checks
-        self.max_sighash_bytes = max_sighash_bytes
-        self.sig_checks = 0
-        self.sighash_bytes = 0
-
-    def charge_sig_check(self) -> None:
-        self.sig_checks += 1
-        if self.sig_checks > self.max_sig_checks:
-            raise ResourceLimitExceeded(f"more than {self.max_sig_checks} signature checks")
-
-    def charge_sighash_bytes(self, n: int) -> None:
-        self.sighash_bytes += n
-        if self.sighash_bytes > self.max_sighash_bytes:
-            raise ResourceLimitExceeded(f"more than {self.max_sighash_bytes} sighash bytes")
-
-    def charge_script_walk(self, script_len: int) -> None:
-        self.charge_sighash_bytes(script_len * self.SCRIPT_WALK_COST)
 
 
 class PrecomputedTransactionData:
@@ -2266,20 +2194,21 @@ STANDARD_FLAGS = (
     | ScriptFlags.CONST_SCRIPTCODE | ScriptFlags.DISCOURAGE_UPGRADABLE_TAPROOT_VERSION
     | ScriptFlags.DISCOURAGE_OP_SUCCESS | ScriptFlags.DISCOURAGE_UPGRADABLE_PUBKEYTYPE
 )
+# What Core requires of the scripts of an unconfirmed tx: STANDARD_SCRIPT_VERIFY_FLAGS (PolicyScriptChecks),
+# and push-only scriptSigs (IsStandardTx).
+# With them, the only opcodes that get executed, apart from pushes, are those of the spent output: its
+# scriptPubKey, and the script that it commits to (P2SH, P2WSH, P2TR). Under CONSENSUS_FLAGS, the scriptSig
+# that spends e.g. a P2PKH output can execute any opcodes.
+MEMPOOL_FLAGS = STANDARD_FLAGS | ScriptFlags.SIGPUSHONLY
 
 
-def verify_input(
-    txdata: PrecomputedTransactionData,
-    txin_index: int, *,
-    flags: int = CONSENSUS_FLAGS,
-    budget: VerificationBudget = None,
-) -> None:
-    """Checks that input txin_index of the tx of txdata validly spends its output.
+def verify_input(txdata: PrecomputedTransactionData, txin_index: int, *, flags: int) -> None:
+    """Checks that input txin_index of the tx of txdata validly spends its output, under the rules of flags
+    (CONSENSUS_FLAGS, or MEMPOOL_FLAGS for an unconfirmed tx).
     The outputs spent by the other inputs may be missing in txdata, if they are not known.
     Raises ScriptVerificationError if the input is not valid.
     Raises MissingSpentOutputs if a taproot signature has to be checked and an output is missing: it
-    commits to all of them. Raises ResourceLimitExceeded if the budget is exhausted. Neither is proof
-    that the input is not valid.
+    commits to all of them. This is not proof that the input is not valid.
     Raises ValueError on API misuse (index out of range, the output spent by the input is missing,
     flag combinations that Core asserts against).
     """
@@ -2289,7 +2218,7 @@ def verify_input(
     if spent is None:
         raise ValueError(f"need the output spent by input {txin_index}")
     txin = txdata.vin[txin_index]
-    checker = TransactionSignatureChecker(txdata, txin_index, spent.value, budget=budget)
+    checker = TransactionSignatureChecker(txdata, txin_index, spent.value)
     err = verify_script(txin.script_sig, spent.script_pubkey, txin.witness, flags, checker)
     if err is not _OK:
         raise ScriptVerificationError(err, txin_index)

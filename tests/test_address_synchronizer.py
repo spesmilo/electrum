@@ -5,7 +5,7 @@ import electrum_ecc as ecc
 
 from electrum import SimpleConfig, bitcoin, descriptor
 from electrum.address_synchronizer import AddressSynchronizer, TX_HEIGHT_UNCONFIRMED
-from electrum.bitcoin import construct_witness, hash_to_segwit_addr
+from electrum.bitcoin import construct_witness, hash_to_segwit_addr, opcodes
 from electrum.script_interpreter import verify_input
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput, TxOutpoint
 from electrum.util import InvalidTxSignature, UnverifiableTxSignature, TxMinedInfo
@@ -19,6 +19,7 @@ KEY_MINE = ecc.ECPrivkey(bytes(31) + b'\x01')
 KEY_MINE_2 = ecc.ECPrivkey(bytes(31) + b'\x02')
 ADDR_MINE = bitcoin.pubkey_to_address('p2wpkh', KEY_MINE.get_public_key_hex())
 ADDR_MINE_2 = bitcoin.pubkey_to_address('p2wpkh', KEY_MINE_2.get_public_key_hex())
+ADDR_MINE_P2PKH = bitcoin.pubkey_to_address('p2pkh', KEY_MINE.get_public_key_hex())
 ADDR_MINE_P2TR = bitcoin.script_to_address(bitcoin.taproot_output_script(KEY_MINE.get_public_key_bytes()[1:], script_tree=None))
 ADDR_OTHER = hash_to_segwit_addr(bytes([1]) * 20, witver=0)
 
@@ -36,19 +37,23 @@ def fund(addr: str, *values: int, n: int = 0) -> Transaction:
     return make_tx([txin], [(addr, value) for value in values])
 
 
-def spending_psbt(parent: Transaction, outputs: Sequence[Tuple[str, int]], *, key=KEY_MINE) -> PartialTransaction:
-    """Returns an unsigned tx spending output 0 (p2wpkh) of parent."""
+def spending_psbt(
+        parent: Transaction, outputs: Sequence[Tuple[str, int]], *, key=KEY_MINE, script_type: str = 'p2wpkh',
+) -> PartialTransaction:
+    """Returns an unsigned tx spending output 0 of parent."""
     txin = PartialTxInput(prevout=TxOutpoint(txid=bytes.fromhex(parent.txid()), out_idx=0))
     txin.witness_utxo = parent.outputs()[0]
     txin.script_descriptor = descriptor.get_singlesig_descriptor_from_legacy_leaf(
-        pubkey=key.get_public_key_hex(), script_type='p2wpkh')
+        pubkey=key.get_public_key_hex(), script_type=script_type)
     txouts = [PartialTxOutput.from_address_and_value(addr, value) for addr, value in outputs]
     return PartialTransaction.from_io([txin], txouts, locktime=0)
 
 
-def spend(parent: Transaction, outputs: Sequence[Tuple[str, int]], *, key=KEY_MINE) -> Transaction:
-    """Returns a tx signed by key, spending output 0 (p2wpkh) of parent."""
-    tx = spending_psbt(parent, outputs, key=key)
+def spend(
+        parent: Transaction, outputs: Sequence[Tuple[str, int]], *, key=KEY_MINE, script_type: str = 'p2wpkh',
+) -> Transaction:
+    """Returns a tx signed by key, spending output 0 of parent."""
+    tx = spending_psbt(parent, outputs, key=key, script_type=script_type)
     tx.sign({key.get_public_key_bytes(): key.get_secret_bytes()})
     assert tx.is_complete()
     return Transaction(tx.serialize())
@@ -98,6 +103,21 @@ class TestAddressSynchronizerScripts(ElectrumTestCase):
         with self.assertRaises(InvalidTxSignature):
             self.adb.add_transaction(self.fake_tx)
 
+    async def test_non_standard_tx_is_rejected(self):
+        # valid under consensus rules, but nodes do not relay it: its scriptSig has an opcode that is not a push
+        self.adb.add_address(ADDR_MINE_P2PKH)
+        funding_tx = fund(ADDR_MINE_P2PKH, 100_000, n=1)
+        tx = spend(funding_tx, [(ADDR_OTHER, 90_000)], script_type='p2pkh')
+        txin = tx.inputs()[0]
+        non_standard_tx = make_tx(
+            [TxInput(prevout=txin.prevout, script_sig=txin.script_sig + bytes([opcodes.OP_NOP]), nsequence=txin.nsequence)],
+            [(ADDR_OTHER, 90_000)])
+        self._receive(funding_tx)
+        self._receive(non_standard_tx)
+        self.assertFalse(self._has(non_standard_tx))
+        self._receive(tx)
+        self.assertTrue(self._has(tx))
+
     async def test_tx_is_rejected_if_interpreter_fails(self):
         self._receive(self.funding_tx)
         bug = IndexError()
@@ -110,13 +130,6 @@ class TestAddressSynchronizerScripts(ElectrumTestCase):
             # a tx that does not come from the server
             with self.assertRaises(UnverifiableTxSignature):
                 self.adb.add_transaction(self.tx)
-
-    async def test_tx_over_budget_cannot_be_verified(self):
-        self._receive(self.funding_tx)
-        with mock.patch('electrum.address_synchronizer.MAX_SIG_CHECKS_PER_TX', 0):
-            with self.assertRaises(UnverifiableTxSignature):
-                self.adb.add_transaction(self.tx)
-        self.assertFalse(self._has(self.tx))
 
     async def test_invalid_tx_before_parent(self):
         self._receive(self.fake_tx)
