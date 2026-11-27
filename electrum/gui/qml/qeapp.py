@@ -509,6 +509,10 @@ class QEAppController(BaseCrashReporter, QObject):
     def getNavigationBarHeight(self) -> int:
         return self._getSystemBarHeight('navigation')
 
+    @pyqtSlot(str, result=str)
+    def escapeHtmlStr(self, rich_text: str):
+        return html.escape(rich_text)
+
 
 class ElectrumQmlApplication(QGuiApplication):
 
