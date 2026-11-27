@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum import mnemonic
 from electrum import keystore
 from electrum.i18n import _
-from electrum.bip32 import is_bip32_derivation, xpub_type
+from electrum.bip32 import is_bip32_derivation, xpub_type, is_xkey_consistent_with_key_origin_info, BIP32Node
 from electrum.logging import get_logger
 from electrum.util import get_asyncio_loop
 from electrum.transaction import tx_from_any
@@ -97,6 +97,38 @@ class QEBitcoin(QObject):
     @pyqtSlot(str, result=bool)
     def verifyDerivationPath(self, path):
         return is_bip32_derivation(path)
+
+    @pyqtSlot(str, str, str, result=str)
+    def verifyKeyOriginInfo(self, xpub: str, derivation: str, fingerprint: str) -> str:
+        derivation = derivation.strip()
+        fingerprint = fingerprint.strip().lower()
+        if not derivation and not fingerprint:
+            return ''
+        if fingerprint and (len(fingerprint) != 8
+                or not all(c in '0123456789abcdef' for c in fingerprint)):
+            return _('BIP32 fingerprint must be exactly 8 hex characters (e.g. deadbeef)')
+        if derivation and not is_bip32_derivation(derivation):
+            return _("Invalid derivation path (e.g. m/84'/0'/0')")
+        if xpub and keystore.is_master_key(xpub):
+            try:
+                consistent = is_xkey_consistent_with_key_origin_info(
+                    xpub,
+                    derivation_prefix=derivation or None,
+                    root_fingerprint=fingerprint or None,
+                )
+                if not consistent:
+                    return _('Derivation path is inconsistent with the master key '
+                             '(check depth and account index)')
+            except Exception:
+                return _('Could not validate key origin info against the master key')
+        return ''
+
+    @pyqtSlot(str, result=int)
+    def masterKeyDepth(self, key: str) -> int:
+        try:
+            return BIP32Node.from_xkey(key.strip()).depth
+        except Exception:
+            return -1
 
     @pyqtSlot(str, result=bool)
     def isRawTx(self, rawtx):
