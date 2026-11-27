@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import asyncio
+import html
 from functools import partial
 from typing import TYPE_CHECKING, List, Tuple, Optional, Union
 
@@ -127,6 +128,8 @@ class QtCosignerWallet(EventListener, CosignerWallet):
         self.window.show_message(message)
 
     def on_receive(self, pubkey, event_id, tx, label):
+        if label:
+            label = html.escape(label)
         msg = '<br/>'.join([
             _("A transaction was received from your cosigner.") if not label else
             _("A transaction was received from your cosigner with label: <br/><big>{}</big><br/>").format(label),
