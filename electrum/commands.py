@@ -466,12 +466,14 @@ class Commands(Logger):
         """
         Create a seed
 
-        arg:int:nbits:Number of bits of entropy
+        arg:int:nbits:Number of bits of entropy (minimum 132, default 132)
         arg:str:seed_type:The type of seed to create, e.g. 'standard' or 'segwit'
         arg:str:language:Default language for wordlist
         """
-        s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
-        return s
+        try:
+            return Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
+        except (TypeError, ValueError) as e:
+            raise UserFacingException(str(e)) from None
 
     @command('n')
     async def getaddresshistory(self, address):

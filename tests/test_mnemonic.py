@@ -1,4 +1,5 @@
 from typing import NamedTuple, Optional
+from unittest import mock
 import json
 import os
 
@@ -99,6 +100,44 @@ SEED_TEST_CASES = {
 
 
 class Test_NewMnemonic(ElectrumTestCase):
+
+    def test_make_seed_rejects_low_entropy(self):
+        # Portuguese uses a smaller wordlist, so validate the requested bits
+        # before word-count rounding, for every supported wordlist size.
+        for lang in ('en', 'pt'):
+            m = mnemonic.Mnemonic(lang=lang)
+            for num_bits in (-1, 0, 1, 11, 12, 128, 131):
+                with self.subTest(lang=lang, num_bits=num_bits), mock.patch(
+                        'electrum.mnemonic.crandom.get_rand_below') as rng:
+                    with self.assertRaisesRegex(ValueError, 'at least 132'):
+                        m.make_seed(num_bits=num_bits)
+                    rng.assert_not_called()
+
+    def test_make_seed_rejects_invalid_entropy_type(self):
+        m = mnemonic.Mnemonic(lang='en')
+        for num_bits in (True, False, 132.0, '132', float('nan'), float('inf')):
+            with self.subTest(num_bits=num_bits), mock.patch(
+                    'electrum.mnemonic.crandom.get_rand_below') as rng:
+                with self.assertRaisesRegex(TypeError, 'integer'):
+                    m.make_seed(num_bits=num_bits)
+                rng.assert_not_called()
+
+    def test_make_seed_accepts_safe_entropy(self):
+        for lang in ('en', 'pt'):
+            m = mnemonic.Mnemonic(lang=lang)
+            for seed_type in ('standard', 'segwit'):
+                for num_bits in (None, 132, 264):
+                    with self.subTest(lang=lang, seed_type=seed_type, num_bits=num_bits), mock.patch(
+                            'electrum.mnemonic.crandom.get_rand_below',
+                            side_effect=lambda bound: bound // 2) as rng:
+                        seed = m.make_seed(seed_type=seed_type, num_bits=num_bits)
+                        rng.assert_called_once()
+                        self.assertGreaterEqual(rng.call_args.args[0].bit_length() - 1, num_bits or 132)
+                        self.assertEqual(seed_type, calc_seed_type(seed))
+                        self.assertFalse(is_old_seed(seed))
+                        self.assertFalse(keystore.bip39_is_checksum_valid(seed, wordlist=m.wordlist)[0])
+                        if lang == 'en':
+                            self.assertEqual(24 if num_bits == 264 else 12, len(seed.split()))
 
     def test_mnemonic_to_seed_basic(self):
         # note: not a valid electrum seed
