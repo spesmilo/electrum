@@ -50,7 +50,7 @@ ElDialog {
 
                 text: [
                     tx_label
-                        ? qsTr('A transaction was received from your cosigner with label: <br/><b>%1</b><br/>').arg(tx_label)
+                        ? qsTr('A transaction was received from your cosigner with label: <br/><b>%1</b><br/>').arg(AppController.escapeHtmlStr(tx_label))
                         : qsTr('A transaction was received from your cosigner.'),
                     qsTr('Do you want to open it now?')
                 ].join('<br/>')

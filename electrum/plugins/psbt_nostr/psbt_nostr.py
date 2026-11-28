@@ -229,6 +229,9 @@ class CosignerWallet(Logger):  # children have to inherit EventListener and regi
                         raise Exception("malformed message, not dict")
                     tx_hex = message.get('tx')
                     label = message.get('label', '')
+                    if not isinstance(label, str):
+                        raise Exception("malformed message, label not str")
+                    label = label[:150]  # truncate to reasonable length
                     tx = tx_from_any(tx_hex)
                 except Exception as e:
                     self.logger.info(_("Unable to deserialize the transaction:") + "\n" + str(e))
