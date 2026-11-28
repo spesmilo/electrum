@@ -1759,14 +1759,9 @@ class Channel(AbstractChannel):
             point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         return secret, point
 
-    def get_secret_and_commitment(self, subject: HTLCOwner, *, ctn: int) -> Tuple[Optional[bytes], PartialTransaction]:
-        secret, point = self.get_secret_and_point(subject, ctn)
-        ctx = self.make_commitment(subject, point, ctn)
-        return secret, ctx
-
     def get_commitment(self, subject: HTLCOwner, *, ctn: int) -> PartialTransaction:
-        secret, ctx = self.get_secret_and_commitment(subject, ctn=ctn)
-        return ctx
+        _secret, point = self.get_secret_and_point(subject, ctn)
+        return self.make_commitment(subject, point, ctn)
 
     def get_next_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_next_ctn(subject)
@@ -1779,27 +1774,6 @@ class Channel(AbstractChannel):
     def get_oldest_unrevoked_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_oldest_unrevoked_ctn(subject)
         return self.get_commitment(subject, ctn=ctn)
-
-    def create_sweeptxs_for_watchtower(self, ctn: int) -> List[Transaction]:
-        from .lnsweep import sweep_their_ctx_watchtower
-        from .fee_policy import FeePolicy
-        from .transaction import PartialTxOutput, PartialTransaction
-        secret, ctx = self.get_secret_and_commitment(REMOTE, ctn=ctn)
-        txs = []
-        txins = sweep_their_ctx_watchtower(self, ctx, secret)
-        fee_policy = FeePolicy('eta:2')
-        for txin in txins:
-            output_idx = txin.prevout.out_idx
-            value = ctx.outputs()[output_idx].value
-            tx_size_bytes = 121
-            fee = fee_policy.estimate_fee(tx_size_bytes, network=self.lnworker.network, allow_fallback_to_static_rates=True)
-            outvalue = value - fee
-            sweep_outputs = [PartialTxOutput.from_address_and_value(self.get_sweep_address(), outvalue)]
-            sweep_tx = PartialTransaction.from_io([txin], sweep_outputs, version=2)
-            sig = sweep_tx.sign_txin(0, txin.privkey)
-            txin.witness = txin.make_witness(sig)
-            txs.append(sweep_tx)
-        return txs
 
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
         return self.hm.ctn_oldest_unrevoked(subject)

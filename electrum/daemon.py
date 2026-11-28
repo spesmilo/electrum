@@ -206,14 +206,35 @@ class AuthenticationCredentialsInvalid(AuthenticationError):
     pass
 
 
-class AuthenticatedServer(Logger):
+class CommandsServer(Logger):
 
-    def __init__(self, rpc_user, rpc_password):
+    def __init__(self, daemon: 'Daemon', fd, *, only_minimal_jsonrpc: bool):
         Logger.__init__(self)
-        self.rpc_user = rpc_user
-        self.rpc_password = rpc_password
+        self.rpc_user, self.rpc_password = get_rpc_credentials(daemon.config)
         self.auth_lock = asyncio.Lock()
         self._methods = {}  # type: Dict[str, Callable]
+        self.daemon = daemon
+        self.fd = fd
+        self._only_minimal_jsonrpc = only_minimal_jsonrpc
+        self.config = daemon.config
+        sockettype = self.config.RPC_SOCKET_TYPE
+        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
+        self.sockpath = self.config.RPC_SOCKET_FILEPATH or get_rpcsock_defaultpath(self.config)
+        self.host = self.config.RPC_HOST
+        self.port = self.config.RPC_PORT
+        self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
+        self.app = web.Application()
+        self.app.router.add_post("/", self.handle)
+        # First add always-enabled commands that are also available for "minimal" rpc server.
+        # - "ping" RPC is needed for the lockfile fd to work.
+        self.register_method('ping', self.ping)
+        # - "gui" RPC is needed for URI handling. (TODO restrict further: disallow opening arbitrary file paths)
+        self.register_method('gui', self.gui)
+        # Add other commands:
+        if not only_minimal_jsonrpc:
+            for cmdname in known_commands:
+                self.register_method(cmdname, getattr(self.cmd_runner, cmdname))
+            self.register_method('run_cmdline', self.run_cmdline)
 
     def register_method(self, name: str, f):
         assert name not in self._methods, f"name collision for {name}"
@@ -282,35 +303,6 @@ class AuthenticatedServer(Logger):
                 },
             }
         return web.json_response(response)
-
-
-class CommandsServer(AuthenticatedServer):
-
-    def __init__(self, daemon: 'Daemon', fd, *, only_minimal_jsonrpc: bool):
-        rpc_user, rpc_password = get_rpc_credentials(daemon.config)
-        AuthenticatedServer.__init__(self, rpc_user, rpc_password)
-        self.daemon = daemon
-        self.fd = fd
-        self._only_minimal_jsonrpc = only_minimal_jsonrpc
-        self.config = daemon.config
-        sockettype = self.config.RPC_SOCKET_TYPE
-        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
-        self.sockpath = self.config.RPC_SOCKET_FILEPATH or get_rpcsock_defaultpath(self.config)
-        self.host = self.config.RPC_HOST
-        self.port = self.config.RPC_PORT
-        self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        # First add always-enabled commands that are also available for "minimal" rpc server.
-        # - "ping" RPC is needed for the lockfile fd to work.
-        self.register_method('ping', self.ping)
-        # - "gui" RPC is needed for URI handling. (TODO restrict further: disallow opening arbitrary file paths)
-        self.register_method('gui', self.gui)
-        # Add other commands:
-        if not only_minimal_jsonrpc:
-            for cmdname in known_commands:
-                self.register_method(cmdname, getattr(self.cmd_runner, cmdname))
-            self.register_method('run_cmdline', self.run_cmdline)
 
     def _socket_config_str(self) -> str:
         if self.socktype == 'unix':
